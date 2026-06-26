@@ -35,6 +35,19 @@ fn make_dir_link(target: &Path, link: &Path) {
     assert!(status.success(), "mklink /J did not succeed");
 }
 
+/// Try to create a Windows *directory symbolic link* (`mklink /D`), which —
+/// unlike a junction — needs elevation or Developer Mode. Returns `false` if it
+/// couldn't be created so the caller can skip rather than fail spuriously.
+#[cfg(windows)]
+fn try_make_dir_symlink(target: &Path, link: &Path) -> bool {
+    let made = Command::new("cmd")
+        .args(["/C", "mklink", "/D"])
+        .arg(link)
+        .arg(target)
+        .status();
+    matches!(made, Ok(s) if s.success()) && link.exists()
+}
+
 fn rip_force(path: &Path) {
     let status = Command::new(env!("CARGO_BIN_EXE_rip"))
         .arg("--force")
@@ -102,4 +115,53 @@ fn ripping_a_link_directly_preserves_target() {
     assert!(external.exists(), "target directory must survive");
     assert!(canary.exists(), "target canary must survive");
     assert_eq!(fs::read(&canary).unwrap(), b"KEEP");
+}
+
+/// The same guarantee as `rip_deletes_the_link_not_its_target`, but for a
+/// Windows *directory symlink* (`mklink /D`) rather than a junction. Junctions
+/// (`IO_REPARSE_TAG_MOUNT_POINT`) and symlinks (`IO_REPARSE_TAG_SYMLINK`) are
+/// distinct reparse kinds; the no-follow guarantee must hold for both, so we
+/// cover the symlink explicitly instead of inferring it from the junction case.
+/// Skipped (not failed) when the environment can't create one.
+#[cfg(windows)]
+#[test]
+fn rip_deletes_a_directory_symlink_not_its_target() {
+    let work = workdir("reparse_dir_symlink");
+
+    let external = work.join("external_target");
+    fs::create_dir_all(&external).unwrap();
+    let canary = external.join("canary.txt");
+    fs::write(&canary, b"DO NOT DELETE").unwrap();
+
+    let root = work.join("rip_root");
+    fs::create_dir_all(root.join("normal_subdir")).unwrap();
+    fs::write(root.join("normal_subdir").join("file.txt"), b"x").unwrap();
+
+    let link = root.join("symlink_to_external");
+    if !try_make_dir_symlink(&external, &link) {
+        eprintln!(
+            "skipping rip_deletes_a_directory_symlink_not_its_target: \
+             could not create a directory symlink (needs Developer Mode or elevation)"
+        );
+        return;
+    }
+
+    // Sanity: the symlink really does resolve to the external canary first.
+    assert!(
+        link.join("canary.txt").exists(),
+        "test setup is wrong — symlink does not resolve to the canary"
+    );
+
+    rip_force(&root);
+
+    assert!(!root.exists(), "rip_root should have been deleted");
+    assert!(
+        external.exists(),
+        "external target directory was destroyed through the symlink!"
+    );
+    assert!(
+        canary.exists(),
+        "canary file was destroyed by traversing the symlink!"
+    );
+    assert_eq!(fs::read(&canary).unwrap(), b"DO NOT DELETE");
 }

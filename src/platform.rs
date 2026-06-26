@@ -29,6 +29,14 @@ mod portable {
 
     fn clear_readonly(path: &Path) {
         if let Ok(meta) = std::fs::symlink_metadata(path) {
+            // `set_permissions` follows symlinks, so clearing a *link's*
+            // read-only bit would actually chmod whatever it points at —
+            // precisely the reach-outside-the-tree we refuse to do elsewhere.
+            // Unlinking a symlink never needs its permissions cleared anyway, so
+            // leave links untouched.
+            if meta.file_type().is_symlink() {
+                return;
+            }
             let mut perms = meta.permissions();
             if perms.readonly() {
                 #[allow(clippy::permissions_set_readonly_false)]

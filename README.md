@@ -86,6 +86,11 @@ comes from:
   deleted as a *link*; the data it points at is never touched. This is the one
   guarantee a fast recursive deleter must never break, and an end-to-end test
   (`tests/reparse_safety.rs`) holds it to that.
+- **It refuses to rip a filesystem root.** A bare `rip C:\` (or `/`, or
+  `\\server\share`) is almost always an accident — a stray argument, an
+  unexpanded variable, a misplaced slash. `rip` rejects whole-volume roots
+  outright, *before* any confirmation and even under `-f`/`--force`. It's a tool
+  for throwaway subtrees, not for erasing a drive.
 - **It still confirms by default.** Unlike `rmdir /s /q`, a bare `rip <path>`
   prints a loud warning and waits for you to type `y`.
 
@@ -146,6 +151,22 @@ guardrail back:
 So the fast, permanent behavior is what you get by default, but
 `rip -t <path>` is a recoverable delete and `rip -n <path>` is a safe preview —
 reach for them whenever you'd rather trade speed for a safety net.
+
+### Known limitations
+
+- **Not atomic (a TOCTOU window).** `rip` works in two passes — it walks the
+  tree to enumerate every entry, then deletes. It does not lock the tree in
+  between, so if something *adds* files under the target while a delete is in
+  flight, those new entries may be removed (they're under a path you asked to
+  delete) or may cause a parent directory to fail to remove (it's no longer
+  empty). This is inherent to any fast, parallel, non-transactional deleter.
+  Don't point `rip` at a tree another process is actively writing into; for a
+  build/dependency directory you've stopped using — its intended use — this
+  window is irrelevant.
+- **Root guard is exact, not heuristic.** The refusal covers filesystem, drive,
+  and UNC *roots* (`/`, `C:\`, `\\server\share`). It does **not** second-guess a
+  non-root path like `C:\Users\you` — `rip` deletes exactly what you name. The
+  `-n`/`--dry-run` preview is there for when you want to look before you leap.
 
 ## Installation
 
@@ -222,7 +243,10 @@ cargo test                  # runs the safety + long-path tests
 `tests/reparse_safety.rs` verifies the most dangerous failure mode: ripping a
 tree containing a symlink/junction must delete the **link**, never traverse it
 and destroy the data it points at. It runs on Unix (symlink) and on Windows
-(junction via `mklink /J`, which needs no elevation), so it executes in CI.
+(junction via `mklink /J`, which needs no elevation), so it executes in CI. A
+third case covers a Windows *directory symlink* (`mklink /D`) — a distinct
+reparse kind from a junction — and is skipped, not failed, when the environment
+can't create one (it needs Developer Mode or elevation).
 
 `tests/long_path.rs` rips a tree whose paths exceed the legacy 260-character
 `MAX_PATH`, exercising the `\\?\` verbatim-path handling on Windows.
@@ -232,7 +256,9 @@ and destroy the data it points at. It runs on Unix (symlink) and on Windows
 - [x] Windows `FILE_DISPOSITION_POSIX_SEMANTICS` for true immediate deletion.
 - [x] `--trash` mode (Recycle Bin / Trash, recoverable).
 - [x] Loud warnings + confirmation, with `--force` to skip.
-- [x] Reparse-point safety test (never traverse a symlink/junction).
+- [x] Reparse-point safety test (never traverse a symlink/junction), covering
+      junctions and directory symlinks.
+- [x] Root guard — refuse to rip a filesystem/drive/UNC root, even under `--force`.
 - [x] Benchmark harness vs. `rmdir /s /q`, `Remove-Item`, and `robocopy /MIR`.
 - [x] Long-path support (`\\?\`) for trees past the 260-char `MAX_PATH`.
 - [x] Progress bar for very large deletes.

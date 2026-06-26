@@ -65,6 +65,20 @@ fn main() -> Result<()> {
     // so a dangling symlink — a real entry the user may well want gone — is
     // accepted instead of wrongly rejected as "does not exist".
     for p in &args.paths {
+        // Guard: never rip a filesystem/drive/UNC root. A bare `rip C:\` (or
+        // `/`, or `\\server\share`) is almost always an accident — a stray
+        // trailing argument, an unexpanded variable, a misplaced slash — and
+        // there is no legitimate reason to recursively delete an entire volume.
+        // Refused unconditionally, *before* any confirmation or --force, so even
+        // `rip -f /` stops here instead of walking the disk.
+        if is_root(p) {
+            bail!(
+                "refusing to rip a filesystem root: {} — this is almost \
+                 certainly a mistake. rip is for throwaway subtrees \
+                 (.git, .venv, node_modules, target/), not whole volumes.",
+                p.display()
+            );
+        }
         if p.symlink_metadata().is_err() {
             bail!("path does not exist: {}", p.display());
         }
@@ -151,6 +165,19 @@ fn trash_paths(args: &Args, start: Instant) -> Result<()> {
         start.elapsed().as_secs_f64()
     );
     Ok(())
+}
+
+/// True if `path` refers to a filesystem root: a Unix `/`, a Windows drive
+/// root (`C:\`), or a UNC share root (`\\server\share`).
+///
+/// The path is fully qualified *lexically* first (`std::path::absolute` — no
+/// filesystem access, so it resolves `.`/`..`/drive-relative forms without ever
+/// following a symlink), then we ask whether it has a parent. A root is the only
+/// thing that doesn't, which makes this a precise, allocation-light test that
+/// also catches the disguised forms (`C:\.`, `C:\foo\..`, a trailing slash).
+fn is_root(path: &Path) -> bool {
+    let abs = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
+    abs.parent().is_none()
 }
 
 #[derive(Default)]
@@ -284,4 +311,47 @@ fn rip_path(root: &Path, args: &Args, stats: &Stats, show_progress: bool) -> Res
     bar.finish_and_clear();
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_root;
+    use std::path::Path;
+
+    // Roots must be refused. We test the pure predicate rather than running the
+    // binary against a real root — a regression here must surface as a failed
+    // assertion, never as an actual attempt to walk a live volume.
+    #[test]
+    fn detects_roots() {
+        #[cfg(unix)]
+        {
+            assert!(is_root(Path::new("/")));
+        }
+        // On Windows `std::path::absolute` resolves `.`/`..` lexically (matching
+        // GetFullPathName), so disguised roots collapse to a bare root and are
+        // caught too. On Unix `absolute` leaves `..` in place by design, so the
+        // `..`-disguised form is intentionally NOT caught there — an accepted
+        // gap on the non-shipped platform; the bare `/` (the realistic mistake)
+        // is what matters and is covered above.
+        #[cfg(windows)]
+        {
+            assert!(is_root(Path::new(r"C:\")));
+            assert!(is_root(Path::new(r"C:\.")));
+            assert!(is_root(Path::new(r"C:\foo\..")));
+        }
+    }
+
+    #[test]
+    fn allows_non_roots() {
+        // A normal nested path is never a root.
+        #[cfg(unix)]
+        assert!(!is_root(Path::new("/home/user/project/node_modules")));
+        #[cfg(windows)]
+        assert!(!is_root(Path::new(r"C:\Users\me\project\node_modules")));
+
+        // A relative path qualifies against the cwd (which is not a root in any
+        // sane test environment), so it has a parent and is allowed.
+        assert!(!is_root(Path::new("node_modules")));
+        assert!(!is_root(Path::new(".")));
+    }
 }
