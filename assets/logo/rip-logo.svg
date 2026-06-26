@@ -1,0 +1,16 @@
+<svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 1B: folder standing in front of the stone, centered -->
+  <rect width="400" height="400" rx="48" fill="#A7D8C4"/>
+  <!-- grass mound -->
+  <path d="M36 330 Q200 294 364 330 L364 360 L36 360 Z" fill="#5BAE84" stroke="#1F2A24" stroke-width="8" stroke-linejoin="round"/>
+  <!-- tombstone body -->
+  <path d="M120 318 V168 a80 80 0 0 1 160 0 V318 Z" fill="#C9CED6" stroke="#1F2A24" stroke-width="10" stroke-linejoin="round"/>
+  <!-- RIP engraved high so the folder doesn't cover it -->
+  <text x="200" y="196" font-family="Georgia, 'Times New Roman', serif" font-size="58" font-weight="700" fill="#1F2A24" text-anchor="middle" letter-spacing="4">RIP</text>
+  <!-- engraved dash -->
+  <line x1="166" y1="224" x2="234" y2="224" stroke="#9AA2AE" stroke-width="7" stroke-linecap="round"/>
+  <!-- folder standing in front, centered on the mound -->
+  <g transform="translate(160 250)">
+    <path d="M0 22 h34 l12 -12 h38 a8 8 0 0 1 8 8 V78 a8 8 0 0 1 -8 8 H0 a8 8 0 0 1 -8 -8 V30 a8 8 0 0 1 8 -8 Z" fill="#F4B73E" stroke="#1F2A24" stroke-width="9" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -1,0 +1,32 @@
+[package]
+name = "rip"
+version = "0.1.0"
+edition = "2024"
+description = "Rip through directories and delete them as fast as possible"
+license = "MIT"
+
+[[bin]]
+name = "rip"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.6", features = ["derive"] }
+jwalk = "0.8"
+rayon = "1.12"
+anyhow = "1.0"
+colored = "3.1"
+trash = "5.2"
+indicatif = "0.17"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
