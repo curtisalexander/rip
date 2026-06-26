@@ -1,6 +1,6 @@
 [package]
 name = "rip"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "Rip through directories and delete them as fast as possible"
 license = "MIT"
