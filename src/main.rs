@@ -296,8 +296,10 @@ fn rip_path(root: &Path, args: &Args, stats: &Stats, show_progress: bool) -> Res
     // an ancestor of another, and the whole batch is safe to remove in parallel.
     // Pair each path with its depth once, up front, so neither the sort nor the
     // batching recomputes it.
-    let mut dirs: Vec<(usize, PathBuf)> =
-        dirs.into_iter().map(|d| (d.components().count(), d)).collect();
+    let mut dirs: Vec<(usize, PathBuf)> = dirs
+        .into_iter()
+        .map(|d| (d.components().count(), d))
+        .collect();
     dirs.sort_by_key(|(depth, _)| std::cmp::Reverse(*depth));
 
     let remove_dir = |(_, d): &(usize, PathBuf)| {
