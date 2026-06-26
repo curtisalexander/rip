@@ -178,7 +178,7 @@ so it installs like any Python tool — **no Rust toolchain required** on the ta
 ```
 uv tool install \
   --no-index \
-  --find-links https://github.com/curtisalexander/rip/releases/expanded_assets/v0.1.1 \
+  --find-links https://github.com/curtisalexander/rip/releases/expanded_assets/v0.1.2 \
   rip
 ```
 
