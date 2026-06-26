@@ -97,6 +97,41 @@ comes from:
   There is deliberately **no** Defender-exclusion feature — `rip` never weakens
   your security posture to go faster.
 
+### Soft links vs. hard links
+
+Windows has two unrelated kinds of "link," and `rip` treats them differently
+because they *are* different things:
+
+- **Soft links** are *pointers* to another path — a separate filesystem object
+  (a "reparse point") whose whole job is to redirect to a target somewhere else.
+  This covers **symbolic links** (`mklink` for files, `mklink /D` for
+  directories) and **junctions** (`mklink /J`, the elevation-free directory
+  redirect). The target can live anywhere — another folder, another volume, your
+  home directory.
+- **Hard links** are *not* pointers. A hard link is just an additional name for
+  one and the same file data on one volume (`mklink /H` / `CreateHardLink`). The
+  "original" and the hard link are co-equal; neither is more real than the other,
+  and the bytes on disk are reference-counted, freed only when the **last** name
+  is removed. Hard links exist for files only, never directories, and never
+  across volumes.
+
+How `rip` behaves with each:
+
+| Kind | What `rip` deletes | What survives |
+| --- | --- | --- |
+| **Soft link** (symlink / junction) | The link itself — always. `rip` opens every entry with `FILE_FLAG_OPEN_REPARSE_POINT` and walks with `follow_links(false)`, so it removes the reparse point as a leaf and **never traverses into the target**. | The target directory/file and everything under it, completely untouched — even when the link sits *inside* the tree you're ripping. |
+| **Hard link** | The one name you pointed it at (that directory entry). There's no reparse point and nothing to "follow" — a hard link *is* the file. | The file's data, as long as **another** hard link to it still exists elsewhere. Only deleting the final remaining link frees the bytes. |
+
+The soft-link guarantee is the dangerous one — a junction in `.venv` pointing at
+your home directory must never let a recursive deleter escape the tree — so it's
+the one held to an end-to-end test (`tests/reparse_safety.rs`), which rips a tree
+containing a junction/symlink and verifies the link dies while the target lives.
+
+The hard-link behavior needs no special handling: because a hard link is an
+ordinary directory entry, deleting it is an ordinary delete. You only lose data
+if you remove the *last* link to it — exactly as any other delete on Windows
+would behave.
+
 ### Dialing the safety back up
 
 The aggressive defaults are opt-out — each trade has a flag that hands the
