@@ -61,6 +61,13 @@ fn main() -> Result<()> {
             .context("failed to configure thread pool")?;
     }
 
+    // Confirm the worker count on demand. With no `-j`, this reports rayon's
+    // default global pool — one thread per logical CPU — which is the mapping
+    // a user staring at Task Manager can't otherwise see.
+    if args.verbose {
+        eprintln!("rip: {} worker threads", rayon::current_num_threads());
+    }
+
     // Validate targets up front. Use `symlink_metadata` rather than `exists()`
     // so a dangling symlink — a real entry the user may well want gone — is
     // accepted instead of wrongly rejected as "does not exist".
@@ -281,32 +288,51 @@ fn rip_path(root: &Path, args: &Args, stats: &Stats, show_progress: bool) -> Res
         }
     });
 
-    // Remove directories deepest-first so each is empty when we reach it.
-    // Sort by component count descending.
-    dirs.sort_by_key(|d| std::cmp::Reverse(d.components().count()));
-    for d in &dirs {
+    // Remove directories deepest-first: a directory can only be removed once
+    // it's empty, so every child must go before its parent. For paths under one
+    // root, more path components always means deeper, so removing in batches of
+    // descending component count keeps children ahead of parents. Crucially,
+    // every directory *within* a single batch is at the same depth — so none is
+    // an ancestor of another, and the whole batch is safe to remove in parallel.
+    // Pair each path with its depth once, up front, so neither the sort nor the
+    // batching recomputes it.
+    let mut dirs: Vec<(usize, PathBuf)> =
+        dirs.into_iter().map(|d| (d.components().count(), d)).collect();
+    dirs.sort_by_key(|(depth, _)| std::cmp::Reverse(*depth));
+
+    let remove_dir = |(_, d): &(usize, PathBuf)| {
         if args.dry_run {
             if args.verbose {
                 println!("would delete {}/", d.display());
             }
             stats.dirs.fetch_add(1, Ordering::Relaxed);
-            continue;
-        }
-        match platform::remove_dir(d) {
-            Ok(()) => {
-                if args.verbose {
-                    println!("{}/", d.display());
+        } else {
+            match platform::remove_dir(d) {
+                Ok(()) => {
+                    if args.verbose {
+                        println!("{}/", d.display());
+                    }
+                    stats.dirs.fetch_add(1, Ordering::Relaxed);
                 }
-                stats.dirs.fetch_add(1, Ordering::Relaxed);
-            }
-            Err(e) => {
-                bar.suspend(|| eprintln!("error: rmdir {}: {e}", d.display()));
-                stats.errors.fetch_add(1, Ordering::Relaxed);
+                Err(e) => {
+                    bar.suspend(|| eprintln!("error: rmdir {}: {e}", d.display()));
+                    stats.errors.fetch_add(1, Ordering::Relaxed);
+                }
             }
         }
         if tracking {
             bar.inc(1);
         }
+    };
+
+    // Walk the depth-sorted list in contiguous runs of equal depth, removing
+    // each run in parallel before descending to the next (shallower) one.
+    let mut start = 0;
+    while start < dirs.len() {
+        let depth = dirs[start].0;
+        let end = start + dirs[start..].partition_point(|(d, _)| *d == depth);
+        dirs[start..end].par_iter().for_each(remove_dir);
+        start = end;
     }
     bar.finish_and_clear();
 
