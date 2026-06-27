@@ -228,11 +228,13 @@ tree. Each tool deletes a fresh copy; the copy isn't timed.
 cargo build --release
 pwsh ./bench/bench.ps1 -Rip .\target\release\rip.exe -Files 50000 -Subdirs 500 -Iterations 5
 # add -ReadOnly to mimic .git pack files (read-only attribute set)
+# add -NoEmoji for ASCII tags instead of emoji on the legacy console (conhost)
 ```
 
 Contenders: `rip --force`, `cmd rmdir /s /q`, PowerShell `Remove-Item -Recurse
 -Force`, and the `robocopy /MIR` empty-mirror trick. Reports the median per tool
-and the speedup vs. `rmdir`.
+and the speedup vs. `rmdir`. Output is emoji-styled with per-phase timing; pass
+`-NoEmoji` if your terminal renders emoji as boxes.
 
 ## Testing
 
