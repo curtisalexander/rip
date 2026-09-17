@@ -305,9 +305,46 @@ runners can establish.
 
 These used hosted Windows Server 2022 runners, NTFS, and four logical CPUs.
 The later runs explicitly recorded Defender real-time protection as **off**,
-the host default. No experiment changed it. A useful next investigation is
-Windows CPU/file-I/O profiling on a representative workstation with Defender
-active, before choosing another deletion strategy.
+the host default. No experiment changed it.
+
+### Defender-off Windows profiling
+
+The [six-profile run](https://github.com/curtisalexander/rip/actions/runs/35268061521)
+uses the unchanged deleter, four workers, freshly created NTFS fixtures, and
+optimized release builds with PDB symbols. All six jobs recorded Defender
+real-time protection as off, verified deletion counts and zero errors, and
+reported zero lost ETW events. Fixture creation is outside collection.
+
+CPU-only samples show these **inclusive CPU shares**, not wall-time shares:
+
+| Workload | Windows delete helper | `CloseHandle` | `CreateFileW` |
+|---|---:|---:|---:|
+| 20,000 files in one folder | 98.4% | 56.8% | 34.0% |
+| 20,000 files across 200 folders | 97.6% | 59.7% | 29.6% |
+| 20,032 directories, no files | 52.6% | 30.1% | 17.9% |
+
+These columns overlap: the helper includes the Windows calls. NTFS cleanup
+dominates the close path. The jwalk enumeration callback accounts for 37.4%
+of CPU samples in the directory-only case, versus 1.4% in the wide-file case.
+This favors investigating per-entry Windows open/delete/cleanup costs for
+file-heavy trees; enumeration remains relevant for directory-heavy trees.
+
+Separate detailed I/O traces show long cleanup requests, including seconds-long
+outliers. Their durations overlap across workers and nested filesystem work;
+do not sum them as elapsed time. CPU sampling does not measure blocked time.
+Hosted storage variability is substantial: the directory-only CPU job took
+38.6 seconds untraced and 5.8 seconds traced on a recreated fixture. These single
+observations are diagnostic, **not a speedup or tracing-overhead benchmark**.
+
+`.github/workflows/profile.yml` reproduces both collection modes with pinned
+PerfView/TraceEvent 3.2.6. It refuses to run with Defender real-time protection
+active and never changes security settings. This does not unload filesystem
+filter drivers. Artifacts contain ETL traces, matching executable/PDB files,
+environment metadata, logs, and JSON summaries; open the ETL in PerfView for
+interactive inspection. Use CPU-only traces for CPU attribution: detailed I/O
+collection also captures per-operation stacks and adds substantial tracing work.
+The production implementation remains unchanged; validate any resulting
+optimization with repeated untraced paired benchmarks on representative storage.
 
 ## Testing
 
