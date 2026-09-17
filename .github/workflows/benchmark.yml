@@ -3,6 +3,14 @@ name: Windows performance experiment
 on:
   push:
     branches: [perf/windows-delete]
+    # Profiling and documentation pushes should not repeat the timing matrix.
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'bench/compare.py'
+      - 'bench/bench.ps1'
   workflow_dispatch:
     inputs:
       baseline:
