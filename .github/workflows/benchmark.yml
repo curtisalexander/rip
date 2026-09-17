@@ -11,6 +11,7 @@ on:
       - 'Cargo.lock'
       - 'bench/compare.py'
       - 'bench/bench.ps1'
+      - '.github/workflows/benchmark.yml'
   workflow_dispatch:
     inputs:
       baseline:
@@ -77,7 +78,8 @@ jobs:
           --baseline baseline/target/release/rip.exe
           --candidate candidate/target/release/rip.exe
           --shapes ${{ matrix.shape }}
-          --entries 10000 --iterations 11 --threads 4
+          --entries 10000 --iterations 15 --threads 4
+          --work-root candidate/target
           --settle-seconds 1
           --output comparison.json
       - uses: actions/upload-artifact@v7
