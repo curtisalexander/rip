@@ -297,6 +297,12 @@ the production deletion code and default worker count were restored unchanged.
   4/11 wide, 5/11 read-only, 7/11 deep and 7/11 directory-heavy pairs. A lower
   median in an individual workload was not enough to justify a speedup claim.
 
+The [source-identical control](https://github.com/curtisalexander/rip/actions/runs/35263855208)
+also produced substantial timing variation: flat-tree medians were 1,668 versus
+1,792 ms, and read-only-tree medians were 1,096 versus 924 ms, without any change
+to deletion source. This limits what small median differences on these hosted
+runners can establish.
+
 These used hosted Windows Server 2022 runners, NTFS, and four logical CPUs.
 The later runs explicitly recorded Defender real-time protection as **off**,
 the host default. No experiment changed it. A useful next investigation is
