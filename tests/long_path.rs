@@ -55,11 +55,11 @@ fn rips_paths_longer_than_legacy_max_path() {
 }
 
 #[test]
-fn mixed_depth_buckets_count_and_delete_every_directory() {
-    let work = workdir("depth_buckets");
+fn mixed_depth_tree_counts_and_deletes_every_directory() {
+    let work = workdir("mixed_depth_tree");
     let root = work.join("victim");
     // Uneven branches, empty directories, a hidden directory and a read-only
-    // file: root-first deletion or counting buckets instead of dirs must fail.
+    // file: root-first deletion or counting depths instead of dirs must fail.
     for dir in ["a/b/c", "a/empty", "sibling", ".hidden"] {
         fs::create_dir_all(root.join(dir)).unwrap();
     }

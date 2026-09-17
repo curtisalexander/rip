@@ -195,15 +195,6 @@ struct Stats {
 }
 
 fn rip_path(root: &Path, args: &Args, stats: &Stats, show_progress: bool) -> Result<()> {
-    // Qualify once without introducing a verbatim prefix: PathBuf::join on
-    // verbatim paths reparses the whole parent. Add the prefix only at the
-    // Windows API boundary. This is lexical and never resolves a root symlink.
-    #[cfg(windows)]
-    let root_path =
-        std::path::absolute(root).with_context(|| format!("cannot qualify {}", root.display()))?;
-    #[cfg(windows)]
-    let root = root_path.as_path();
-
     let meta = std::fs::symlink_metadata(root)
         .with_context(|| format!("cannot stat {}", root.display()))?;
 
@@ -224,10 +215,9 @@ fn rip_path(root: &Path, args: &Args, stats: &Stats, show_progress: bool) -> Res
         return Ok(());
     }
 
-    // Bucket directories by the walker's depth, avoiding path parsing/sorting.
+    // Directory: collect everything, deepest paths first.
     let mut files: Vec<PathBuf> = Vec::new();
-    let mut dirs: Vec<Vec<PathBuf>> = Vec::new();
-    let mut dir_count = 0;
+    let mut dirs: Vec<PathBuf> = Vec::new();
 
     let scan = progress::scanner(show_progress);
     let scanning = !scan.is_hidden();
@@ -254,22 +244,19 @@ fn rip_path(root: &Path, args: &Args, stats: &Stats, show_progress: bool) -> Res
         let path = entry.path();
         // Treat symlinks as files — never follow them into other trees.
         if entry.file_type().is_dir() {
-            let depth = entry.depth();
-            dirs.resize_with(dirs.len().max(depth + 1), Vec::new);
-            dirs[depth].push(path);
-            dir_count += 1;
+            dirs.push(path);
         } else {
             files.push(path);
         }
         // Refresh the count periodically — but never on the first entry, so a
         // small tree (which never reaches the interval) shows no spinner at all.
         if scanning && i > 0 && i % progress::SCAN_REFRESH == 0 {
-            scan.set_position((files.len() + dir_count) as u64);
+            scan.set_position((files.len() + dirs.len()) as u64);
         }
     }
     scan.finish_and_clear();
 
-    let total = (files.len() + dir_count) as u64;
+    let total = (files.len() + dirs.len()) as u64;
     let bar = progress::deleter(show_progress, total);
     // Capture visibility once so the hot loop never touches the bar (and never
     // takes its lock) when there's nothing to draw.
@@ -301,9 +288,21 @@ fn rip_path(root: &Path, args: &Args, stats: &Stats, show_progress: bool) -> Res
         }
     });
 
-    // Equal-depth directories cannot be ancestors of each other. Finish each
-    // entire bucket before moving to its parents.
-    let remove_dir = |d: &PathBuf| {
+    // Remove directories deepest-first: a directory can only be removed once
+    // it's empty, so every child must go before its parent. For paths under one
+    // root, more path components always means deeper, so removing in batches of
+    // descending component count keeps children ahead of parents. Crucially,
+    // every directory *within* a single batch is at the same depth — so none is
+    // an ancestor of another, and the whole batch is safe to remove in parallel.
+    // Pair each path with its depth once, up front, so neither the sort nor the
+    // batching recomputes it.
+    let mut dirs: Vec<(usize, PathBuf)> = dirs
+        .into_iter()
+        .map(|d| (d.components().count(), d))
+        .collect();
+    dirs.sort_by_key(|(depth, _)| std::cmp::Reverse(*depth));
+
+    let remove_dir = |(_, d): &(usize, PathBuf)| {
         if args.dry_run {
             if args.verbose {
                 println!("would delete {}/", d.display());
@@ -328,8 +327,14 @@ fn rip_path(root: &Path, args: &Args, stats: &Stats, show_progress: bool) -> Res
         }
     };
 
-    for level in dirs.iter().rev() {
-        level.par_iter().for_each(remove_dir);
+    // Walk the depth-sorted list in contiguous runs of equal depth, removing
+    // each run in parallel before descending to the next (shallower) one.
+    let mut start = 0;
+    while start < dirs.len() {
+        let depth = dirs[start].0;
+        let end = start + dirs[start..].partition_point(|(d, _)| *d == depth);
+        dirs[start..end].par_iter().for_each(remove_dir);
+        start = end;
     }
     bar.finish_and_clear();
 

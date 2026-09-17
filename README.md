@@ -279,6 +279,30 @@ Use Windows results to evaluate Windows changes; Linux timings cannot validate
 the Windows API path. Repeat promising results on the actual Windows workstation
 and representative disposable project trees before choosing a new thread default.
 
+### September 2026 experiment outcome: keep the existing deleter
+
+The experiments did **not** establish a reliable general Windows speedup, so
+the production deletion code and default worker count were restored unchanged.
+
+- [Verbatim-root preparation and depth buckets](https://github.com/curtisalexander/rip/actions/runs/35257861739)
+  did not show consistent gains. Verbatim `PathBuf` joins reparse their parents,
+  making an already-verbatim walk root a poor shortcut for deep trees.
+- [Deleting leaves during directory enumeration](https://github.com/curtisalexander/rip/actions/runs/35260914751)
+  won all nine wide-tree pairs at 16 workers, but flat trees at four workers
+  regressed from 1,292 ms to 1,603 ms median. It was not retained. An earlier
+  variant with nested Rayon work inside jwalk callbacks also stalled; the
+  timeout-backed stress test guards against reintroducing that design.
+- [Ordinary absolute-root preparation with the existing two-phase algorithm](https://github.com/curtisalexander/rip/actions/runs/35262571473)
+  was also inconclusive. At four workers, the candidate won only 5/11 flat,
+  4/11 wide, 5/11 read-only, 7/11 deep and 7/11 directory-heavy pairs. A lower
+  median in an individual workload was not enough to justify a speedup claim.
+
+These used hosted Windows Server 2022 runners, NTFS, and four logical CPUs.
+The later runs explicitly recorded Defender real-time protection as **off**,
+the host default. No experiment changed it. A useful next investigation is
+Windows CPU/file-I/O profiling on a representative workstation with Defender
+active, before choosing another deletion strategy.
+
 ## Testing
 
 ```
@@ -295,6 +319,9 @@ can't create one (it needs Developer Mode or elevation).
 
 `tests/long_path.rs` rips a tree whose paths exceed the legacy 260-character
 `MAX_PATH`, exercising the `\\?\` verbatim-path handling on Windows.
+It also verifies mixed-depth directory counts, read-only files and dry-run behavior.
+`tests/parallel_delete.rs` exercises a 10,000-file tree at four and sixteen workers
+with a timeout so worker starvation fails the test instead of hanging CI.
 
 ## Roadmap
 

@@ -88,15 +88,18 @@ mod win {
     /// verbatim prefix, so the call escapes the legacy `MAX_PATH` (260-char)
     /// limit.
     ///
-    /// The caller qualifies the walk root with `std::path::absolute` once;
-    /// descendants append directory-entry names to that qualified root. Do not
-    /// repeat GetFullPathNameW for every entry, or prefix the root before walking
-    /// (verbatim PathBuf joins normalize/rebuild every parent component).
+    /// `std::path::absolute` fully qualifies the path lexically — resolving
+    /// `.`, `..`, `/`, and drive-relative forms — with no filesystem access, so
+    /// it never resolves a trailing symlink into its target and reparse-point
+    /// safety is preserved. A verbatim path *must* be fully qualified and
+    /// backslash-separated, which is exactly what that gives us.
     fn to_wide(path: &Path) -> Vec<u16> {
-        debug_assert!(path.is_absolute());
-        let body = path.as_os_str();
+        // Falls back to the original path only if the cwd is unavailable, in
+        // which case the delete simply fails and is reported like any error.
+        let abs = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
+        let body = abs.as_os_str();
 
-        let wide: Vec<u16> = match path.components().next() {
+        let wide: Vec<u16> = match abs.components().next() {
             Some(Component::Prefix(p)) => match p.kind() {
                 // Already escaped (`\\?\…`) or a device path (`\\.\…`): as-is.
                 Prefix::Verbatim(_)
@@ -112,7 +115,7 @@ mod win {
                 // Drive path `C:\…` (the common case) -> `\\?\C:\…`.
                 Prefix::Disk(_) => r"\\?\".encode_utf16().chain(body.encode_wide()).collect(),
             },
-            // Absolute Windows paths normally always have a prefix.
+            // No drive/UNC prefix (couldn't fully qualify): fall back unprefixed.
             _ => body.encode_wide().collect(),
         };
 
@@ -174,28 +177,5 @@ mod win {
 
     pub fn remove_dir(path: &Path) -> io::Result<()> {
         delete(path)
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use std::os::windows::ffi::OsStringExt;
-
-        #[test]
-        fn qualified_paths_encode_without_changing_entry_names() {
-            for (input, expected) in [
-                (r"C:\tree\file.txt", r"\\?\C:\tree\file.txt"),
-                (r"\\server\share\file.txt", r"\\?\UNC\server\share\file.txt"),
-                (r"\\?\C:\tree\trailing. ", r"\\?\C:\tree\trailing. "),
-                (r"C:\tree\trailing. ", r"\\?\C:\tree\trailing. "),
-            ] {
-                let wide = to_wide(Path::new(input));
-                assert_eq!(wide.last(), Some(&0));
-                assert_eq!(
-                    std::ffi::OsString::from_wide(&wide[..wide.len() - 1]),
-                    expected
-                );
-            }
-        }
     }
 }
