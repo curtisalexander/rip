@@ -73,7 +73,9 @@ fn mixed_depth_buckets_count_and_delete_every_directory() {
 
     for dry_run in [true, false] {
         let mut command = Command::new(env!("CARGO_BIN_EXE_rip"));
-        command.current_dir(&work).args(["-f", "-j", "4"]);
+        // The walk and its nested file deletion share a single Rayon worker;
+        // neither may block waiting for work that only that worker can run.
+        command.current_dir(&work).args(["-f", "-j", "1"]);
         if dry_run {
             command.arg("-n");
         }

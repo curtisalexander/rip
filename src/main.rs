@@ -1,11 +1,12 @@
 //! RIP — rip through a directory tree and delete it as fast as possible.
 //!
 //! Strategy:
-//!   1. Walk the tree in parallel (jwalk) to collect every file and directory.
-//!   2. Delete all files in parallel (rayon), clearing read-only flags first.
+//!   1. Walk the tree in parallel (jwalk), retaining directories by depth.
+//!   2. Delete file leaves in parallel as each directory is enumerated.
 //!   3. Remove directories deepest-first (a dir can only be removed once empty).
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
@@ -111,7 +112,7 @@ fn main() -> Result<()> {
     }
 
     let show_progress = progress::enabled(args.verbose, args.dry_run);
-    let stats = Stats::default();
+    let stats = Arc::new(Stats::default());
     for path in &args.paths {
         if let Err(e) = rip_path(path, &args, &stats, show_progress) {
             eprintln!("error ripping {}: {e:#}", path.display());
@@ -194,14 +195,7 @@ struct Stats {
     errors: AtomicU64,
 }
 
-fn rip_path(root: &Path, args: &Args, stats: &Stats, show_progress: bool) -> Result<()> {
-    // Qualify once, not once per descendant. Keep lexical normalization so a
-    // root symlink is never resolved into its target.
-    #[cfg(windows)]
-    let root_path = platform::prepare_path(root);
-    #[cfg(windows)]
-    let root = root_path.as_path();
-
+fn rip_path(root: &Path, args: &Args, stats: &Arc<Stats>, show_progress: bool) -> Result<()> {
     let meta = std::fs::symlink_metadata(root)
         .with_context(|| format!("cannot stat {}", root.display()))?;
 
@@ -223,12 +217,16 @@ fn rip_path(root: &Path, args: &Args, stats: &Stats, show_progress: bool) -> Res
     }
 
     // Bucket directories by the walker's depth, avoiding path parsing/sorting.
-    let mut files: Vec<PathBuf> = Vec::new();
+    let mut file_count = 0;
     let mut dirs: Vec<Vec<PathBuf>> = Vec::new();
     let mut dir_count = 0;
 
     let scan = progress::scanner(show_progress);
     let scanning = !scan.is_hidden();
+    let file_stats = Arc::clone(stats);
+    let file_progress = scan.clone();
+    let dry_run = args.dry_run;
+    let verbose = args.verbose;
 
     // SAFETY: `follow_links(false)` is critical — it ensures we never descend
     // through a symlink or junction into a tree outside `root`. A reparse point
@@ -238,6 +236,42 @@ fn rip_path(root: &Path, args: &Args, stats: &Stats, show_progress: bool) -> Res
     for (i, entry) in jwalk::WalkDir::new(root)
         .skip_hidden(false)
         .follow_links(false)
+        .process_read_dir(move |_, _, _, entries| {
+            // jwalk has fully collected this directory before invoking us.
+            // Delete only leaves: cached entries remain valid, and all real
+            // directories stay in place for enumeration and later cleanup.
+            // Nested Rayon work uses the same pool, including with -j 1.
+            entries
+                .par_iter()
+                .filter_map(|e| e.as_ref().ok())
+                .for_each(|entry| {
+                    if entry.file_type().is_dir() {
+                        return;
+                    }
+                    let path = entry.path();
+                    if dry_run {
+                        if verbose {
+                            println!("would delete {}", path.display());
+                        }
+                        file_stats.files.fetch_add(1, Ordering::Relaxed);
+                    } else {
+                        match platform::remove_file(&path) {
+                            Ok(()) => {
+                                if verbose {
+                                    println!("{}", path.display());
+                                }
+                                file_stats.files.fetch_add(1, Ordering::Relaxed);
+                            }
+                            Err(e) => {
+                                file_progress.suspend(|| {
+                                    eprintln!("error: remove {}: {e:#}", path.display())
+                                });
+                                file_stats.errors.fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
+                    }
+                });
+        })
         .into_iter()
         .enumerate()
     {
@@ -249,55 +283,34 @@ fn rip_path(root: &Path, args: &Args, stats: &Stats, show_progress: bool) -> Res
                 continue;
             }
         };
-        let path = entry.path();
         // Treat symlinks as files — never follow them into other trees.
         if entry.file_type().is_dir() {
             let depth = entry.depth();
             dirs.resize_with(dirs.len().max(depth + 1), Vec::new);
-            dirs[depth].push(path);
+            dirs[depth].push(entry.path());
             dir_count += 1;
         } else {
-            files.push(path);
+            file_count += 1;
         }
         // Refresh the count periodically — but never on the first entry, so a
         // small tree (which never reaches the interval) shows no spinner at all.
         if scanning && i > 0 && i % progress::SCAN_REFRESH == 0 {
-            scan.set_position((files.len() + dir_count) as u64);
+            scan.set_position((file_count + dir_count) as u64);
         }
     }
     scan.finish_and_clear();
 
-    let total = (files.len() + dir_count) as u64;
+    let total = (file_count + dir_count) as u64;
     let bar = progress::deleter(show_progress, total);
     // Capture visibility once so the hot loop never touches the bar (and never
     // takes its lock) when there's nothing to draw.
     let tracking = !bar.is_hidden();
 
-    // Delete files in parallel.
-    files.par_iter().for_each(|f| {
-        if args.dry_run {
-            if args.verbose {
-                println!("would delete {}", f.display());
-            }
-            stats.files.fetch_add(1, Ordering::Relaxed);
-            return;
-        }
-        match platform::remove_file(f) {
-            Ok(()) => {
-                if args.verbose {
-                    println!("{}", f.display());
-                }
-                stats.files.fetch_add(1, Ordering::Relaxed);
-            }
-            Err(e) => {
-                bar.suspend(|| eprintln!("error: remove {}: {e:#}", f.display()));
-                stats.errors.fetch_add(1, Ordering::Relaxed);
-            }
-        }
-        if tracking {
-            bar.inc(1);
-        }
-    });
+    // Exhausting the walker joins the directory callbacks, so all file
+    // deletion attempts are complete before any directory can be removed.
+    if tracking {
+        bar.set_position(file_count as u64);
+    }
 
     // Equal-depth directories cannot be ancestors of each other. Finish each
     // entire bucket before moving to its parents.

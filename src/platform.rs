@@ -18,7 +18,7 @@ use std::io;
 use std::path::Path;
 
 #[cfg(windows)]
-pub use win::{prepare_path, remove_dir, remove_file};
+pub use win::{remove_dir, remove_file};
 
 #[cfg(not(windows))]
 pub use portable::{remove_dir, remove_file};
@@ -71,8 +71,8 @@ mod portable {
 mod win {
     use super::*;
     use core::ffi::c_void;
-    use std::os::windows::ffi::{OsStrExt, OsStringExt};
-    use std::path::{Component, PathBuf, Prefix};
+    use std::os::windows::ffi::OsStrExt;
+    use std::path::{Component, Prefix};
 
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::Storage::FileSystem::{
@@ -84,14 +84,6 @@ mod win {
     };
     use windows::core::PCWSTR;
 
-    /// Prepare the walk root once; joined descendants retain the verbatim
-    /// prefix and bypass per-entry GetFullPathName/path allocations below.
-    pub fn prepare_path(path: &Path) -> PathBuf {
-        let mut wide = to_wide(path);
-        wide.pop(); // NUL terminator is for Win32, not PathBuf.
-        std::ffi::OsString::from_wide(&wide).into()
-    }
-
     /// Encode `path` as a NUL-terminated wide string carrying the `\\?\`
     /// verbatim prefix, so the call escapes the legacy `MAX_PATH` (260-char)
     /// limit.
@@ -102,19 +94,12 @@ mod win {
     /// safety is preserved. A verbatim path *must* be fully qualified and
     /// backslash-separated, which is exactly what that gives us.
     fn to_wide(path: &Path) -> Vec<u16> {
-        if matches!(
-            path.components().next(),
-            Some(Component::Prefix(p)) if p.kind().is_verbatim()
-        ) {
-            return path.as_os_str().encode_wide().chain(Some(0)).collect();
-        }
-
         // Falls back to the original path only if the cwd is unavailable, in
         // which case the delete simply fails and is reported like any error.
         let abs = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
         let body = abs.as_os_str();
 
-        let mut wide: Vec<u16> = match abs.components().next() {
+        let wide: Vec<u16> = match abs.components().next() {
             Some(Component::Prefix(p)) => match p.kind() {
                 // Already escaped (`\\?\…`) or a device path (`\\.\…`): as-is.
                 Prefix::Verbatim(_)
@@ -134,8 +119,7 @@ mod win {
             _ => body.encode_wide().collect(),
         };
 
-        wide.push(0);
-        wide
+        wide.into_iter().chain(std::iter::once(0)).collect()
     }
 
     /// Map a Windows API error to `io::Error`. These errors carry a Win32 code
@@ -193,33 +177,5 @@ mod win {
 
     pub fn remove_dir(path: &Path) -> io::Result<()> {
         delete(path)
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn prepares_paths_lexically_and_preserves_verbatim_names() {
-            for (input, expected) in [
-                (r"C:\tree\..\victim", r"\\?\C:\victim"),
-                (r"C:/tree/./victim", r"\\?\C:\tree\victim"),
-                (r"\\server\share\victim", r"\\?\UNC\server\share\victim"),
-                (r"\\?\C:\tree\trailing. ", r"\\?\C:\tree\trailing. "),
-            ] {
-                assert_eq!(prepare_path(Path::new(input)), Path::new(expected));
-                let wide = to_wide(Path::new(expected));
-                assert_eq!(wide.last(), Some(&0));
-                assert_eq!(
-                    std::ffi::OsString::from_wide(&wide[..wide.len() - 1]),
-                    expected
-                );
-            }
-            let relative = Path::new("relative-victim");
-            assert_eq!(
-                prepare_path(relative),
-                prepare_path(&std::path::absolute(relative).unwrap())
-            );
-        }
     }
 }

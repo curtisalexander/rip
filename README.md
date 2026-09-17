@@ -15,7 +15,8 @@ Windows is slow at deletion because tools delete one file at a time, synchronous
 while Defender scans each one. `rip` instead:
 
 1. **Walks the tree in parallel** (`jwalk`) — multi-threaded enumeration.
-2. **Deletes files in parallel** (`rayon`) — saturates the I/O queue.
+2. **Deletes files in parallel** (`rayon`) as directories are enumerated —
+   overlaps scanning with deletion without retaining every file path.
 3. **Deletes read-only files anyway** — read-only `.git` pack files are the
    usual cause of "access denied", so `rip` removes them in the same syscall.
 4. **Removes directories deepest-first** so each is empty when reached.
@@ -48,6 +49,7 @@ Use `-f`/`--force` (alias `-y`/`--yes`) to skip the warning and confirmation, or
 `-t`/`--trash` to move to the Recycle Bin / Trash instead (recoverable, safer).
 
 Large deletes show a scan spinner and a progress bar on an interactive terminal.
+Files are already being deleted during scanning; the bar finishes directory cleanup.
 They stay out of the way otherwise — suppressed when output is piped or
 redirected, under `--verbose` (which prints every path), and under `--dry-run` —
 so scripted and benchmarked runs pay nothing for them.
@@ -154,9 +156,9 @@ reach for them whenever you'd rather trade speed for a safety net.
 
 ### Known limitations
 
-- **Not atomic (a TOCTOU window).** `rip` works in two passes — it walks the
-  tree to enumerate every entry, then deletes. It does not lock the tree in
-  between, so if something *adds* files under the target while a delete is in
+- **Not atomic (a TOCTOU window).** `rip` deletes files during enumeration,
+  then removes directories deepest-first. It does not lock the tree, so if
+  something *adds* files under the target while a delete is in
   flight, those new entries may be removed (they're under a path you asked to
   delete) or may cause a parent directory to fail to remove (it's no longer
   empty). This is inherent to any fast, parallel, non-transactional deleter.

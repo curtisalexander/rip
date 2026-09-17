@@ -38,9 +38,9 @@ jobs:
       - name: Record environment (do not change Defender)
         shell: pwsh
         run: |
-          Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, OsBuildNumber, CsProcessors
-          Get-Volume | Select-Object DriveLetter, FileSystem, SizeRemaining, Size
-          Get-MpComputerStatus | Select-Object AMProductVersion, AntivirusSignatureVersion, RealTimeProtectionEnabled
+          Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, OsBuildNumber, CsProcessors | ConvertTo-Json -Depth 3
+          Get-Volume | Select-Object DriveLetter, FileSystem, SizeRemaining, Size | ConvertTo-Json
+          Get-MpComputerStatus | Select-Object AMProductVersion, AntivirusSignatureVersion, RealTimeProtectionEnabled | ConvertTo-Json
           rustc -Vv
           git -C baseline rev-parse HEAD
           git -C candidate rev-parse HEAD
@@ -65,7 +65,7 @@ jobs:
           --baseline baseline/target/release/rip.exe
           --candidate candidate/target/release/rip.exe
           --shapes ${{ matrix.shape }}
-          --entries 10000 --iterations 7 --threads 0 4 16 32
+          --entries 10000 --iterations 9 --threads 1 4 16
           --output comparison.json
       - uses: actions/upload-artifact@v7
         if: always()
