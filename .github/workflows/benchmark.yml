@@ -48,7 +48,11 @@ jobs:
         run: |
           Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, OsBuildNumber, CsProcessors | ConvertTo-Json -Depth 3
           Get-Volume | Select-Object DriveLetter, FileSystem, SizeRemaining, Size | ConvertTo-Json
-          Get-MpComputerStatus | Select-Object AMProductVersion, AntivirusSignatureVersion, RealTimeProtectionEnabled | ConvertTo-Json
+          $defender = Get-MpComputerStatus
+          $defender | Select-Object AMProductVersion, AntivirusSignatureVersion, RealTimeProtectionEnabled | ConvertTo-Json
+          if ($defender.RealTimeProtectionEnabled -ne $false) {
+            throw 'This experiment requires Defender real-time protection off; settings are not changed.'
+          }
           rustc -Vv
           git -C baseline rev-parse HEAD
           git -C candidate rev-parse HEAD

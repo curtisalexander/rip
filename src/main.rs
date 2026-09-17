@@ -263,30 +263,32 @@ fn rip_path(root: &Path, args: &Args, stats: &Stats, show_progress: bool) -> Res
     let tracking = !bar.is_hidden();
 
     // Delete files in parallel.
-    files.par_iter().for_each(|f| {
-        if args.dry_run {
-            if args.verbose {
-                println!("would delete {}", f.display());
-            }
-            stats.files.fetch_add(1, Ordering::Relaxed);
-            return;
-        }
-        match platform::remove_file(f) {
-            Ok(()) => {
+    files
+        .par_iter()
+        .for_each_init(platform::FileDeleter::default, |deleter, f| {
+            if args.dry_run {
                 if args.verbose {
-                    println!("{}", f.display());
+                    println!("would delete {}", f.display());
                 }
                 stats.files.fetch_add(1, Ordering::Relaxed);
+                return;
             }
-            Err(e) => {
-                bar.suspend(|| eprintln!("error: remove {}: {e:#}", f.display()));
-                stats.errors.fetch_add(1, Ordering::Relaxed);
+            match deleter.remove_file(f) {
+                Ok(()) => {
+                    if args.verbose {
+                        println!("{}", f.display());
+                    }
+                    stats.files.fetch_add(1, Ordering::Relaxed);
+                }
+                Err(e) => {
+                    bar.suspend(|| eprintln!("error: remove {}: {e:#}", f.display()));
+                    stats.errors.fetch_add(1, Ordering::Relaxed);
+                }
             }
-        }
-        if tracking {
-            bar.inc(1);
-        }
-    });
+            if tracking {
+                bar.inc(1);
+            }
+        });
 
     // Remove directories deepest-first: a directory can only be removed once
     // it's empty, so every child must go before its parent. For paths under one
