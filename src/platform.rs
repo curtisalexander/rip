@@ -18,21 +18,10 @@ use std::io;
 use std::path::Path;
 
 #[cfg(windows)]
-pub use win::{FileDeleter, remove_dir, remove_file};
+pub use win::{remove_dir, remove_file};
 
 #[cfg(not(windows))]
 pub use portable::{remove_dir, remove_file};
-
-#[cfg(not(windows))]
-#[derive(Default)]
-pub struct FileDeleter;
-
-#[cfg(not(windows))]
-impl FileDeleter {
-    pub fn remove_file(&mut self, path: &Path) -> io::Result<()> {
-        remove_file(path)
-    }
-}
 
 #[cfg(not(windows))]
 mod portable {
@@ -82,94 +71,18 @@ mod portable {
 mod win {
     use super::*;
     use core::ffi::c_void;
-    use std::fs::{File, OpenOptions};
     use std::os::windows::ffi::OsStrExt;
-    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
-    use std::os::windows::io::AsRawHandle;
-    use std::path::{Component, PathBuf, Prefix};
+    use std::path::{Component, Prefix};
 
-    use windows::Wdk::Foundation::OBJECT_ATTRIBUTES;
-    use windows::Wdk::Storage::FileSystem::{
-        FILE_OPEN_FOR_BACKUP_INTENT, FILE_OPEN_REPARSE_POINT, NtOpenFile,
-    };
-    use windows::Win32::Foundation::{CloseHandle, HANDLE, RtlNtStatusToDosError, UNICODE_STRING};
+    use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::Storage::FileSystem::{
-        CreateFileW, DELETE, FILE_ATTRIBUTE_REPARSE_POINT, FILE_DISPOSITION_FLAG_DELETE,
+        CreateFileW, DELETE, FILE_DISPOSITION_FLAG_DELETE,
         FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE, FILE_DISPOSITION_FLAG_POSIX_SEMANTICS,
         FILE_DISPOSITION_INFO_EX, FILE_DISPOSITION_INFO_EX_FLAGS, FILE_FLAG_BACKUP_SEMANTICS,
-        FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
-        FILE_SHARE_WRITE, FileDispositionInfoEx, OPEN_EXISTING, SetFileInformationByHandle,
+        FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+        FileDispositionInfoEx, OPEN_EXISTING, SetFileInformationByHandle,
     };
-    use windows::Win32::System::IO::IO_STATUS_BLOCK;
-    use windows::core::{PCWSTR, PWSTR};
-
-    /// One parent per Rayon task, released before the directory-delete phase.
-    #[derive(Default)]
-    pub struct FileDeleter {
-        parent: Option<(PathBuf, File)>,
-        name: Vec<u16>,
-    }
-
-    impl FileDeleter {
-        pub fn remove_file(&mut self, path: &Path) -> io::Result<()> {
-            let parent = path
-                .parent()
-                .ok_or_else(|| io::Error::other("missing parent"))?;
-            let name = path
-                .file_name()
-                .ok_or_else(|| io::Error::other("missing filename"))?;
-            if self.parent.as_ref().is_none_or(|(p, _)| p != parent) {
-                self.parent = None;
-                let file = OpenOptions::new()
-                    .access_mode(FILE_READ_ATTRIBUTES.0)
-                    .share_mode((FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE).0)
-                    .custom_flags((FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT).0)
-                    .open(parent)?;
-                let metadata = file.metadata()?;
-                if !metadata.is_dir()
-                    || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT.0 != 0
-                {
-                    return Err(io::Error::other("parent is not a non-reparse directory"));
-                }
-                self.parent = Some((parent.to_owned(), file));
-            }
-            self.name.clear();
-            self.name.extend(name.encode_wide());
-            let bytes = u16::try_from(self.name.len() * 2)
-                .map_err(|_| io::Error::other("filename exceeds UNICODE_STRING length"))?;
-            let mut name = UNICODE_STRING {
-                Length: bytes,
-                MaximumLength: bytes,
-                Buffer: PWSTR(self.name.as_mut_ptr()),
-            };
-            let attributes = OBJECT_ATTRIBUTES {
-                Length: core::mem::size_of::<OBJECT_ATTRIBUTES>() as u32,
-                RootDirectory: HANDLE(self.parent.as_ref().unwrap().1.as_raw_handle()),
-                ObjectName: &mut name,
-                ..Default::default()
-            };
-            let mut handle = HANDLE::default();
-            let mut status_block = IO_STATUS_BLOCK::default();
-            // The name is a single component from enumeration. Open the leaf
-            // itself, not a symlink target; keep the parent alive through close.
-            let status = unsafe {
-                NtOpenFile(
-                    &mut handle,
-                    DELETE.0,
-                    &attributes,
-                    &mut status_block,
-                    (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE).0,
-                    (FILE_OPEN_REPARSE_POINT | FILE_OPEN_FOR_BACKUP_INTENT).0,
-                )
-            };
-            if status.0 < 0 {
-                return Err(io::Error::from_raw_os_error(
-                    unsafe { RtlNtStatusToDosError(status) } as i32,
-                ));
-            }
-            delete_handle(handle)
-        }
-    }
+    use windows::core::PCWSTR;
 
     /// Encode `path` as a NUL-terminated wide string carrying the `\\?\`
     /// verbatim prefix, so the call escapes the legacy `MAX_PATH` (260-char)
@@ -233,10 +146,6 @@ mod win {
         }
         .map_err(to_io)?;
 
-        delete_handle(handle)
-    }
-
-    fn delete_handle(handle: HANDLE) -> io::Result<()> {
         // These flag constants don't implement BitOr in this crate version,
         // so combine the raw bits and wrap.
         let info = FILE_DISPOSITION_INFO_EX {
@@ -268,80 +177,5 @@ mod win {
 
     pub fn remove_dir(path: &Path) -> io::Result<()> {
         delete(path)
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use std::fs;
-
-        fn workspace(tag: &str) -> PathBuf {
-            let path = std::env::temp_dir().join(format!("rip-{tag}-{}", std::process::id()));
-            fs::create_dir(&path).unwrap();
-            path
-        }
-
-        #[test]
-        fn relative_open_switches_parent_and_counts_utf16_bytes() {
-            let work = workspace("relative-names");
-            let a = work.join("a");
-            let b = work.join("b");
-            fs::create_dir(&a).unwrap();
-            fs::create_dir(&b).unwrap();
-            let name = "非ASCII-🦀.txt";
-            fs::write(a.join(name), b"first").unwrap();
-            fs::write(b.join(name), b"second").unwrap();
-            fs::write(a.join("keep"), b"canary").unwrap();
-            let mut deleter = FileDeleter::default();
-            deleter.remove_file(&a.join(name)).unwrap();
-            assert_eq!(fs::read(b.join(name)).unwrap(), b"second");
-            deleter.remove_file(&b.join(name)).unwrap();
-            assert!(!b.join(name).exists());
-            assert_eq!(
-                deleter.remove_file(&b.join(name)).unwrap_err().kind(),
-                io::ErrorKind::NotFound
-            );
-            assert_eq!(fs::read(a.join("keep")).unwrap(), b"canary");
-            drop(deleter);
-            fs::remove_dir_all(work).unwrap();
-        }
-
-        #[test]
-        fn cached_parent_stays_anchored_after_junction_substitution() {
-            let work = workspace("relative-junction");
-            let parent = work.join("parent");
-            let moved = work.join("moved");
-            let external = work.join("external");
-            fs::create_dir(&parent).unwrap();
-            fs::create_dir(&external).unwrap();
-            fs::write(parent.join("first"), b"first").unwrap();
-            fs::write(parent.join("second"), b"delete").unwrap();
-            fs::write(external.join("second"), b"DO NOT DELETE").unwrap();
-            let mut deleter = FileDeleter::default();
-            deleter.remove_file(&parent.join("first")).unwrap();
-            fs::rename(&parent, &moved).unwrap();
-            assert!(
-                std::process::Command::new("cmd")
-                    .args(["/C", "mklink", "/J"])
-                    .arg(&parent)
-                    .arg(&external)
-                    .status()
-                    .unwrap()
-                    .success()
-            );
-            deleter.remove_file(&parent.join("second")).unwrap();
-            assert!(!moved.join("second").exists());
-            assert_eq!(fs::read(external.join("second")).unwrap(), b"DO NOT DELETE");
-            // A newly opened parent must reject the junction, not follow it.
-            assert!(
-                FileDeleter::default()
-                    .remove_file(&parent.join("second"))
-                    .is_err()
-            );
-            assert_eq!(fs::read(external.join("second")).unwrap(), b"DO NOT DELETE");
-            drop(deleter);
-            fs::remove_dir(&parent).unwrap();
-            fs::remove_dir_all(work).unwrap();
-        }
     }
 }

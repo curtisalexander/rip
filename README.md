@@ -264,8 +264,10 @@ is not evidence of a reliable improvement.
 
 `.github/workflows/benchmark.yml` runs the same comparison on Windows Server 2022,
 building both revisions on each runner and running candidate safety tests first.
-The current CI experiment uses eleven pairs at four workers with a one-second
-settling pause. Change those arguments when testing a different hypothesis.
+The current CI experiment uses fifteen pairs at four workers with a one-second
+settling pause, creating fixtures on the checkout volume under `candidate/target`
+rather than the default temporary volume. Change those arguments when testing a
+different hypothesis. It requires Defender real-time protection to be off.
 It triggers on pushes to `perf/windows-delete` and supports manual dispatch once
 available on the default branch. It uploads one JSON artifact per workload,
 records the revisions and Defender status in the logs, and never publishes a
@@ -345,6 +347,43 @@ interactive inspection. Use CPU-only traces for CPU attribution: detailed I/O
 collection also captures per-operation stacks and adds substantial tracing work.
 The production implementation remains unchanged; validate any resulting
 optimization with repeated untraced paired benchmarks on representative storage.
+
+### Parent-relative native-open experiment: not retained
+
+The [prototype](https://github.com/curtisalexander/rip/commit/f2fd03c)
+retained one parent-directory handle per Rayon task and used `NtOpenFile` with
+`RootDirectory` and a UTF-16 leaf name for file deletion. It kept the existing
+POSIX/ignore-readonly disposition, close operation, four workers, traversal,
+and directory deletion. Cached handles were released before deleting directories.
+This tested file opens only, not a complete handle-relative traversal redesign.
+
+The [first run on the temporary volume, C:](https://github.com/curtisalexander/rip/actions/runs/35279004938)
+was noisy: paired median baseline/candidate ratios were 1.007x flat, 1.020x wide,
+1.173x deep, 1.184x read-only, and 0.947x directories. Candidate wins were only
+7/11, 7/11, 6/11, 9/11, and 4/11 respectively.
+
+The [second run on the checkout volume, D:](https://github.com/curtisalexander/rip/actions/runs/35279865081)
+did not reproduce a benefit:
+
+| Workload | Baseline median | Candidate median | Median paired speedup | Candidate wins |
+|---|---:|---:|---:|---:|
+| Flat | 497 ms | 737 ms | 0.668x | 0/15 |
+| Wide | 373 ms | 370 ms | 0.992x | 6/15 |
+| Deep | 365 ms | 373 ms | 0.935x | 6/15 |
+| Read-only | 375 ms | 399 ms | 0.924x | 3/15 |
+| Directories (unchanged path) | 445 ms | 445 ms | 1.003x | 8/15 |
+
+Ratios above 1 favor the candidate; paired medians differ from ratios of the
+two unpaired medians. All 260 timed deletions passed count/error checks, and all
+ten Windows tests passed on each runner, including prototype tests for Unicode
+lengths, parent switching, and junction substitution after caching a handle.
+Defender real-time protection was off throughout the recorded pre-run checks.
+
+The consistent flat-folder regression rejects this prototype as a general
+optimization. These results do not establish the cause of the regression or rule
+out other handle-relative designs. The prototype was reverted; production source
+and Cargo configuration again match the original baseline. The experiment remains
+available in Git history, with raw measurements in the linked Actions artifacts.
 
 ## Testing
 
