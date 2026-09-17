@@ -53,3 +53,38 @@ fn rips_paths_longer_than_legacy_max_path() {
 
     assert!(!root.exists(), "deep tree should have been deleted");
 }
+
+#[test]
+fn mixed_depth_buckets_count_and_delete_every_directory() {
+    let work = workdir("depth_buckets");
+    let root = work.join("victim");
+    // Uneven branches, empty directories, a hidden directory and a read-only
+    // file: root-first deletion or counting buckets instead of dirs must fail.
+    for dir in ["a/b/c", "a/empty", "sibling", ".hidden"] {
+        fs::create_dir_all(root.join(dir)).unwrap();
+    }
+    for file in ["top.txt", "a/b/c/deep.txt", ".hidden/readonly.txt"] {
+        fs::write(root.join(file), b"keep until deletion").unwrap();
+    }
+    let readonly = root.join(".hidden/readonly.txt");
+    let mut permissions = fs::metadata(&readonly).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&readonly, permissions).unwrap();
+
+    for dry_run in [true, false] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_rip"));
+        command.current_dir(&work).args(["-f", "-j", "4"]);
+        if dry_run {
+            command.arg("-n");
+        }
+        let output = command.arg("./victim").output().unwrap();
+        assert!(output.status.success());
+        let summary = String::from_utf8_lossy(&output.stderr);
+        assert!(summary.contains("3 files, 7 dirs"), "{summary}");
+        assert!(summary.contains("(0 errors)"), "{summary}");
+        assert_eq!(root.exists(), dry_run);
+        if dry_run {
+            assert_eq!(fs::read(&readonly).unwrap(), b"keep until deletion");
+        }
+    }
+}

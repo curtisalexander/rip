@@ -236,6 +236,43 @@ Contenders: `rip --force`, `cmd rmdir /s /q`, PowerShell `Remove-Item -Recurse
 and the speedup vs. `rmdir`. Output is emoji-styled with per-phase timing; pass
 `-NoEmoji` if your terminal renders emoji as boxes.
 
+### Comparing an optimization against the previous build
+
+Use `bench/compare.py` (Python 3.10+) for before/after experiments. Save a release
+binary **before** changing the code, then build the candidate with the same Rust
+toolchain and release settings:
+
+```powershell
+python bench/compare.py --baseline .\baseline.exe --candidate .\target\release\rip.exe --output comparison.json
+```
+
+This runs five synthetic workloads: a flat directory, many sibling packages,
+empty directories, uneven deep trees, and read-only files. Each has 10,000 files
+(or 10,000 empty leaf directories). Both builds get a warmup, seven paired runs
+with alternating execution order, and a sweep of default/4/16/32 workers. Use
+`--shapes`, `--entries`, `--iterations`, `--threads`, and `--work-root` to narrow
+the experiment or select a drive; `--threads 0` means the default worker count.
+
+Only the subprocess execution is timed, including startup, scanning and deleting.
+Fresh fixture creation is excluded. Every run must remove its entire victim,
+report the expected file/directory counts and zero errors, and exit successfully.
+The JSON retains raw samples, binary hashes, medians and paired baseline/candidate
+ratios (above 1 means faster). A small median win with inconsistent paired results
+is not evidence of a reliable improvement.
+
+`.github/workflows/benchmark.yml` runs the same comparison on Windows Server 2022,
+building both revisions on each runner and running candidate safety tests first.
+It triggers on pushes to `perf/windows-delete` and supports manual dispatch once
+available on the default branch. It uploads one JSON artifact per workload,
+records the revisions and Defender status in the logs, and never publishes a
+release or changes Defender settings.
+
+These are **warm, freshly created synthetic trees**, not cold-cache measurements
+or representative samples of every SSD, antivirus configuration, or project.
+Use Windows results to evaluate Windows changes; Linux timings cannot validate
+the Windows API path. Repeat promising results on the actual Windows workstation
+and representative disposable project trees before choosing a new thread default.
+
 ## Testing
 
 ```
