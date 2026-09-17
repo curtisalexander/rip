@@ -22,6 +22,7 @@ def main():
     parser.add_argument("--shape", choices=["flat", "wide", "dirs", "deep", "readonly"], default="wide")
     parser.add_argument("--entries", type=int, default=20000)
     parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument("--mode", choices=["cpu", "io"], required=True)
     args = parser.parse_args()
     if os.name != "nt" or args.entries < 1 or args.threads < 1:
         parser.error("Requires Windows and positive entry/worker counts")
@@ -29,7 +30,7 @@ def main():
     output = args.output.resolve()
     binary = args.rip.resolve(strict=True)
     perfview = args.perfview.resolve(strict=True)
-    report = dict(shape=args.shape, entries=args.entries, threads=args.threads,
+    report = dict(shape=args.shape, mode=args.mode, entries=args.entries, threads=args.threads,
                   binarySha256=hashlib.sha256(binary.read_bytes()).hexdigest())
     with tempfile.TemporaryDirectory(prefix="rip-profile-", ignore_cleanup_errors=True) as work:
         ordinary_root = Path(work).resolve() / "victim"
@@ -41,10 +42,13 @@ def main():
         time.sleep(1)
         log = output / "perfview.log"
         etl = output / "rip.etl"
+        events = "Process,Thread,ImageLoad,Profile"
+        if args.mode == "io":
+            events += ",ContextSwitch,Dispatcher,DiskIO,DiskFileIO,DiskIOInit,FileIO,FileIOInit"
         command = [str(perfview), "/AcceptEula", "/NoGui", "/NoView",
                    f"/LogFile:{log}", f"/DataFile:{etl}", "/Zip:false", "/Merge:true",
                    "/NoRundown", "/MaxCollectSec:120", "/CpuSampleMSec:1",
-                   "/KernelEvents:Process,Thread,ImageLoad,Profile,ContextSwitch,Dispatcher,DiskIO,DiskFileIO,DiskIOInit,FileIO,FileIOInit",
+                   f"/KernelEvents:{events}",
                    "run", str(binary), "--force", "--threads", str(args.threads), str(ordinary_root)]
         result = subprocess.run(command, capture_output=True, timeout=300)
         (output / "collector-output.txt").write_bytes(result.stdout + result.stderr)

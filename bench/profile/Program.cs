@@ -4,8 +4,8 @@ using Microsoft.Diagnostics.Tracing.Etlx;
 using Microsoft.Diagnostics.Tracing.Parsers.Kernel;
 using Microsoft.Diagnostics.Tracing.Stacks;
 
-if (args.Length != 3)
-    throw new ArgumentException("usage: TraceSummary <trace.etl> <trusted-pdb-directory> <summary.json>");
+if (args.Length != 4 || (args[3] != "cpu" && args[3] != "io"))
+    throw new ArgumentException("usage: TraceSummary <trace.etl> <trusted-pdb-directory> <summary.json> <cpu|io>");
 
 using var log = TraceLog.OpenOrConvert(Path.GetFullPath(args[0]),
     new TraceLogOptions { ConversionLog = Console.Error });
@@ -81,6 +81,9 @@ foreach (var e in log.Events)
             ulong irp = Convert.ToUInt64(e.PayloadByName("IrpPtr"));
             if (irp != 0)
             {
+                // DeletePath augments the same delete request; retain its first timestamp.
+                if (pending.TryGetValue(irp, out var previous) && previous.Operation == "Delete" &&
+                    (op == "DletePath" || op == "DeletePath")) continue;
                 if (pending.ContainsKey(irp)) replacedIrps++;
                 pending[irp] = (e.TimeStampRelativeMSec, op);
             }
@@ -105,6 +108,7 @@ foreach (var e in log.Events)
 
 var summary = new
 {
+    mode = args[3],
     process = new { process.Name, process.ProcessID, process.CommandLine,
         process.StartTimeRelativeMsec, process.EndTimeRelativeMsec,
         wallMs = process.EndTimeRelativeMsec - process.StartTimeRelativeMsec },
@@ -134,5 +138,5 @@ var summary = new
     }
 };
 File.WriteAllText(args[2], JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true }));
-if (log.EventsLost != 0 || samples == 0 || operations.Count == 0)
+if (log.EventsLost != 0 || samples == 0 || (args[3] == "io" && operations.Count == 0))
     throw new InvalidDataException($"Incomplete trace: lost={log.EventsLost}, samples={samples}, fileOps={operations.Count}");
