@@ -83,15 +83,19 @@ def main():
     parser.add_argument("--threads", nargs="+", type=int, default=[0, 4, 16, 32],
                         help="0 uses rip's default logical CPU count")
     parser.add_argument("--work-root", type=Path, help="scratch parent on the filesystem to measure")
+    parser.add_argument("--settle-seconds", type=float, default=0,
+                        help="untimed pause after fixture creation to reduce background-write overlap")
     parser.add_argument("--output", type=Path, default=Path("comparison.json"))
     args = parser.parse_args()
-    if args.entries < 1 or args.iterations < 1 or any(t < 0 for t in args.threads):
-        parser.error("entries/iterations must be positive; threads must be nonnegative")
+    if (args.entries < 1 or args.iterations < 1 or any(t < 0 for t in args.threads)
+            or not 0 <= args.settle_seconds < float("inf")):
+        parser.error("entries/iterations must be positive; threads and finite settle time must be nonnegative")
     binaries = {"baseline": args.baseline.resolve(strict=True),
                 "candidate": args.candidate.resolve(strict=True)}
     report = {
         "platform": platform.platform(), "cpu_count": os.cpu_count(),
         "entries": args.entries, "iterations": args.iterations,
+        "settle_seconds": args.settle_seconds,
         "rayon_num_threads": os.environ.get("RAYON_NUM_THREADS"),
         "sha256": {name: hashlib.sha256(path.read_bytes()).hexdigest()
                    for name, path in binaries.items()},
@@ -117,6 +121,8 @@ def main():
                 order = first_order if iteration % 2 == 0 else first_order[::-1]
                 for name in order:
                     expected = fixture(root, shape, args.entries)
+                    if args.settle_seconds:
+                        time.sleep(args.settle_seconds)
                     ms = measure(binaries[name], root, threads, expected)
                     if iteration >= 0:
                         times[name].append(ms)

@@ -66,6 +66,7 @@ jobs:
           --candidate candidate/target/release/rip.exe
           --shapes ${{ matrix.shape }}
           --entries 10000 --iterations 9 --threads 1 4 16
+          --settle-seconds 1
           --output comparison.json
       - uses: actions/upload-artifact@v7
         if: always()

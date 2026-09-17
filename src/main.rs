@@ -196,6 +196,15 @@ struct Stats {
 }
 
 fn rip_path(root: &Path, args: &Args, stats: &Arc<Stats>, show_progress: bool) -> Result<()> {
+    // Qualify once without introducing a verbatim prefix: PathBuf::join on
+    // verbatim paths reparses the whole parent. Add that prefix only at the
+    // Windows API boundary. This is lexical, not symlink-following canonicalize.
+    #[cfg(windows)]
+    let absolute_root =
+        std::path::absolute(root).with_context(|| format!("cannot qualify {}", root.display()))?;
+    #[cfg(windows)]
+    let root = absolute_root.as_path();
+
     let meta = std::fs::symlink_metadata(root)
         .with_context(|| format!("cannot stat {}", root.display()))?;
 
@@ -240,9 +249,11 @@ fn rip_path(root: &Path, args: &Args, stats: &Arc<Stats>, show_progress: bool) -
             // jwalk has fully collected this directory before invoking us.
             // Delete only leaves: cached entries remain valid, and all real
             // directories stay in place for enumeration and later cleanup.
-            // Nested Rayon work uses the same pool, including with -j 1.
+            // Parallelism is across directories, supplied by jwalk. Do not
+            // nest par_iter here: a joining worker can steal a blocking jwalk
+            // queue consumer and starve the callback that must feed it.
             entries
-                .par_iter()
+                .iter()
                 .filter_map(|e| e.as_ref().ok())
                 .for_each(|entry| {
                     if entry.file_type().is_dir() {
