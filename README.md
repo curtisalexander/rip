@@ -15,8 +15,7 @@ Windows is slow at deletion because tools delete one file at a time, synchronous
 while Defender scans each one. `rip` instead:
 
 1. **Walks the tree in parallel** (`jwalk`) — multi-threaded enumeration.
-2. **Deletes files in parallel** (`rayon`) as directories are enumerated —
-   overlaps scanning with deletion without retaining every file path.
+2. **Deletes files in parallel** (`rayon`) — saturates the I/O queue.
 3. **Deletes read-only files anyway** — read-only `.git` pack files are the
    usual cause of "access denied", so `rip` removes them in the same syscall.
 4. **Removes directories deepest-first** so each is empty when reached.
@@ -49,7 +48,6 @@ Use `-f`/`--force` (alias `-y`/`--yes`) to skip the warning and confirmation, or
 `-t`/`--trash` to move to the Recycle Bin / Trash instead (recoverable, safer).
 
 Large deletes show a scan spinner and a progress bar on an interactive terminal.
-Files are already being deleted during scanning; the bar finishes directory cleanup.
 They stay out of the way otherwise — suppressed when output is piped or
 redirected, under `--verbose` (which prints every path), and under `--dry-run` —
 so scripted and benchmarked runs pay nothing for them.
@@ -156,9 +154,9 @@ reach for them whenever you'd rather trade speed for a safety net.
 
 ### Known limitations
 
-- **Not atomic (a TOCTOU window).** `rip` deletes files during enumeration,
-  then removes directories deepest-first. It does not lock the tree, so if
-  something *adds* files under the target while a delete is in
+- **Not atomic (a TOCTOU window).** `rip` works in two passes — it walks the
+  tree to enumerate every entry, then deletes. It does not lock the tree in
+  between, so if something *adds* files under the target while a delete is in
   flight, those new entries may be removed (they're under a path you asked to
   delete) or may cause a parent directory to fail to remove (it's no longer
   empty). This is inherent to any fast, parallel, non-transactional deleter.
@@ -254,6 +252,8 @@ empty directories, uneven deep trees, and read-only files. Each has 10,000 files
 with alternating execution order, and a sweep of default/4/16/32 workers. Use
 `--shapes`, `--entries`, `--iterations`, `--threads`, and `--work-root` to narrow
 the experiment or select a drive; `--threads 0` means the default worker count.
+`--settle-seconds 1` adds an untimed pause after each fixture is generated to
+reduce overlap with background writes; it does not flush caches or change Defender.
 
 Only the subprocess execution is timed, including startup, scanning and deleting.
 Fresh fixture creation is excluded. Every run must remove its entire victim,
@@ -264,10 +264,14 @@ is not evidence of a reliable improvement.
 
 `.github/workflows/benchmark.yml` runs the same comparison on Windows Server 2022,
 building both revisions on each runner and running candidate safety tests first.
+The current CI experiment uses eleven pairs at four workers with a one-second
+settling pause. Change those arguments when testing a different hypothesis.
 It triggers on pushes to `perf/windows-delete` and supports manual dispatch once
 available on the default branch. It uploads one JSON artifact per workload,
 records the revisions and Defender status in the logs, and never publishes a
 release or changes Defender settings.
+Hosted runners can have Defender real-time protection disabled by default;
+check the recorded status before interpreting results as Defender-on performance.
 
 These are **warm, freshly created synthetic trees**, not cold-cache measurements
 or representative samples of every SSD, antivirus configuration, or project.
