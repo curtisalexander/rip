@@ -1,11 +1,6 @@
 name: Windows CPU and file IO profile
 
 on:
-  push:
-    branches: [perf/windows-delete]
-    paths:
-      - 'bench/profile/**'
-      - '.github/workflows/profile.yml'
   workflow_dispatch:
 
 permissions:
@@ -46,8 +41,8 @@ jobs:
             defender = ($defender | Select-Object AMProductVersion, AntivirusSignatureVersion, RealTimeProtectionEnabled)
             rustReleaseDebug = $env:CARGO_PROFILE_RELEASE_DEBUG
           } | ConvertTo-Json -Depth 5 | Set-Content profile-output/environment.json
-          if ($defender.RealTimeProtectionEnabled) {
-            throw 'Defender is active; refusing to change security settings for this profile.'
+          if ($defender.RealTimeProtectionEnabled -ne $false) {
+            throw 'This profile requires Defender real-time protection off; settings are not changed.'
           }
       - name: Build optimized binary with symbols and trace analyzer
         run: |

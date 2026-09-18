@@ -1,0 +1,237 @@
+{
+  "platform": "Windows-2022Server-10.0.20348-SP0",
+  "cpu_count": 4,
+  "entries": 10000,
+  "iterations": 15,
+  "settle_seconds": 1.0,
+  "rayon_num_threads": null,
+  "sha256": {
+    "baseline": "8031ea820d6f4c16263a5dd2068f4e7e03342b4769311d73d34144842a5371e1",
+    "candidate": "010eefd4af7d8808b4cd3dc90120b12b79d71abe4e61a1a6e574c21644166edd"
+  },
+  "samples": [
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 0,
+      "binary": "candidate",
+      "ms": 438.8546
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 0,
+      "binary": "baseline",
+      "ms": 451.5907
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 1,
+      "binary": "baseline",
+      "ms": 455.3767
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 1,
+      "binary": "candidate",
+      "ms": 526.957
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 2,
+      "binary": "candidate",
+      "ms": 446.4293
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 2,
+      "binary": "baseline",
+      "ms": 440.5053
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 3,
+      "binary": "baseline",
+      "ms": 445.1679
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 3,
+      "binary": "candidate",
+      "ms": 432.5689
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 4,
+      "binary": "candidate",
+      "ms": 532.1548
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 4,
+      "binary": "baseline",
+      "ms": 438.9509
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 5,
+      "binary": "baseline",
+      "ms": 444.7891
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 5,
+      "binary": "candidate",
+      "ms": 439.5687
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 6,
+      "binary": "candidate",
+      "ms": 443.2804
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 6,
+      "binary": "baseline",
+      "ms": 596.838
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 7,
+      "binary": "baseline",
+      "ms": 445.1403
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 7,
+      "binary": "candidate",
+      "ms": 449.1648
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 8,
+      "binary": "candidate",
+      "ms": 436.3205
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 8,
+      "binary": "baseline",
+      "ms": 440.0503
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 9,
+      "binary": "baseline",
+      "ms": 457.9249
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 9,
+      "binary": "candidate",
+      "ms": 456.5933
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 10,
+      "binary": "candidate",
+      "ms": 444.7403
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 10,
+      "binary": "baseline",
+      "ms": 441.3553
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 11,
+      "binary": "baseline",
+      "ms": 488.8786
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 11,
+      "binary": "candidate",
+      "ms": 436.9996
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 12,
+      "binary": "candidate",
+      "ms": 437.9025
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 12,
+      "binary": "baseline",
+      "ms": 586.2884
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 13,
+      "binary": "baseline",
+      "ms": 444.5883
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 13,
+      "binary": "candidate",
+      "ms": 485.5462
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 14,
+      "binary": "candidate",
+      "ms": 471.766
+    },
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "iteration": 14,
+      "binary": "baseline",
+      "ms": 436.0606
+    }
+  ],
+  "summary": [
+    {
+      "shape": "dirs",
+      "threads": 4,
+      "baseline_ms": 445.1403,
+      "candidate_ms": 444.7403,
+      "paired_speedup": 1.002916380945581,
+      "candidate_wins": 8,
+      "min_speedup": 0.8248556622997668,
+      "max_speedup": 1.3464118873742217
+    }
+  ],
+  "scratch_path": "\\\\?\\D:\\a\\rip\\rip\\candidate\\target\\rip-compare-f9dzyy17"
+}

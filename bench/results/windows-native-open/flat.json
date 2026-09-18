@@ -1,0 +1,237 @@
+{
+  "platform": "Windows-2022Server-10.0.20348-SP0",
+  "cpu_count": 4,
+  "entries": 10000,
+  "iterations": 15,
+  "settle_seconds": 1.0,
+  "rayon_num_threads": null,
+  "sha256": {
+    "baseline": "9bb66baf5f8b7ec4dfc5c99f7e10460ee946f18a80fc65335e077b7790ef4796",
+    "candidate": "f49d566189382b4d24bee3bcec67f448c06c9b3cd59d21b493b31559baecde72"
+  },
+  "samples": [
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 0,
+      "binary": "candidate",
+      "ms": 759.0381
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 0,
+      "binary": "baseline",
+      "ms": 496.6335
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 1,
+      "binary": "baseline",
+      "ms": 486.1843
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 1,
+      "binary": "candidate",
+      "ms": 728.8375
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 2,
+      "binary": "candidate",
+      "ms": 735.4925
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 2,
+      "binary": "baseline",
+      "ms": 495.694
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 3,
+      "binary": "baseline",
+      "ms": 514.3454
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 3,
+      "binary": "candidate",
+      "ms": 733.2988
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 4,
+      "binary": "candidate",
+      "ms": 730.1654
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 4,
+      "binary": "baseline",
+      "ms": 519.137
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 5,
+      "binary": "baseline",
+      "ms": 486.7394
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 5,
+      "binary": "candidate",
+      "ms": 775.5361
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 6,
+      "binary": "candidate",
+      "ms": 763.787
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 6,
+      "binary": "baseline",
+      "ms": 517.0195
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 7,
+      "binary": "baseline",
+      "ms": 496.5976
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 7,
+      "binary": "candidate",
+      "ms": 759.6361
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 8,
+      "binary": "candidate",
+      "ms": 751.2027
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 8,
+      "binary": "baseline",
+      "ms": 495.7842
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 9,
+      "binary": "baseline",
+      "ms": 516.3288
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 9,
+      "binary": "candidate",
+      "ms": 725.5084
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 10,
+      "binary": "candidate",
+      "ms": 750.2
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 10,
+      "binary": "baseline",
+      "ms": 498.8603
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 11,
+      "binary": "baseline",
+      "ms": 490.069
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 11,
+      "binary": "candidate",
+      "ms": 733.1849
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 12,
+      "binary": "candidate",
+      "ms": 737.2271
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 12,
+      "binary": "baseline",
+      "ms": 488.5152
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 13,
+      "binary": "baseline",
+      "ms": 530.3783
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 13,
+      "binary": "candidate",
+      "ms": 743.8891
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 14,
+      "binary": "candidate",
+      "ms": 715.2826
+    },
+    {
+      "shape": "flat",
+      "threads": 4,
+      "iteration": 14,
+      "binary": "baseline",
+      "ms": 527.7114
+    }
+  ],
+  "summary": [
+    {
+      "shape": "flat",
+      "threads": 4,
+      "baseline_ms": 496.6335,
+      "candidate_ms": 737.2271,
+      "paired_speedup": 0.6684112015945773,
+      "candidate_wins": 0,
+      "min_speedup": 0.6276166899258461,
+      "max_speedup": 0.7377663038357147
+    }
+  ],
+  "scratch_path": "\\\\?\\D:\\a\\rip\\rip\\candidate\\target\\rip-compare-0b6qnjfq"
+}

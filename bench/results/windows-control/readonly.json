@@ -1,0 +1,181 @@
+{
+  "platform": "Windows-2022Server-10.0.20348-SP0",
+  "cpu_count": 4,
+  "entries": 10000,
+  "iterations": 11,
+  "settle_seconds": 1.0,
+  "rayon_num_threads": null,
+  "sha256": {
+    "baseline": "6d75050e4c8f0f64c1424346d7e9b187c9d0819ee8a85d2422e540583689f6bd",
+    "candidate": "aaf72204eb2d8835b8fe934413de1cc4c34b94ef8e47d7adebd58d80e86aa361"
+  },
+  "samples": [
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 0,
+      "binary": "candidate",
+      "ms": 1242.0571
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 0,
+      "binary": "baseline",
+      "ms": 1751.0453
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 1,
+      "binary": "baseline",
+      "ms": 808.3338
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 1,
+      "binary": "candidate",
+      "ms": 816.5297
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 2,
+      "binary": "candidate",
+      "ms": 1341.7128
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 2,
+      "binary": "baseline",
+      "ms": 780.6857
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 3,
+      "binary": "baseline",
+      "ms": 1096.0916
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 3,
+      "binary": "candidate",
+      "ms": 924.0103
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 4,
+      "binary": "candidate",
+      "ms": 971.8171
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 4,
+      "binary": "baseline",
+      "ms": 2000.6612
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 5,
+      "binary": "baseline",
+      "ms": 813.9502
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 5,
+      "binary": "candidate",
+      "ms": 807.2193
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 6,
+      "binary": "candidate",
+      "ms": 771.378
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 6,
+      "binary": "baseline",
+      "ms": 1767.0864
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 7,
+      "binary": "baseline",
+      "ms": 792.3575
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 7,
+      "binary": "candidate",
+      "ms": 1827.9045
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 8,
+      "binary": "candidate",
+      "ms": 1600.1203
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 8,
+      "binary": "baseline",
+      "ms": 1851.5463
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 9,
+      "binary": "baseline",
+      "ms": 788.4028
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 9,
+      "binary": "candidate",
+      "ms": 806.5523
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 10,
+      "binary": "candidate",
+      "ms": 773.3924
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 10,
+      "binary": "baseline",
+      "ms": 1925.3465
+    }
+  ],
+  "summary": [
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "baseline_ms": 1096.0916,
+      "candidate_ms": 924.0103,
+      "paired_speedup": 1.1571294358305435,
+      "candidate_wins": 7,
+      "min_speedup": 0.43347860897546886,
+      "max_speedup": 2.4894820533535116
+    }
+  ],
+  "scratch_path": "\\\\?\\C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\rip-compare-qjsyifey"
+}

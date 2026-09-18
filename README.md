@@ -264,16 +264,18 @@ is not evidence of a reliable improvement.
 
 `.github/workflows/benchmark.yml` runs the same comparison on Windows Server 2022,
 building both revisions on each runner and running candidate safety tests first.
-The current CI experiment uses fifteen pairs at four workers with a one-second
-settling pause, creating fixtures on the checkout volume under `candidate/target`
-rather than the default temporary volume. Change those arguments when testing a
-different hypothesis. It requires Defender real-time protection to be off.
-It triggers on pushes to `perf/windows-delete` and supports manual dispatch once
-available on the default branch. It uploads one JSON artifact per workload,
-records the revisions and Defender status in the logs, and never publishes a
-release or changes Defender settings.
-Hosted runners can have Defender real-time protection disabled by default;
-check the recorded status before interpreting results as Defender-on performance.
+It is **manual-only**: once the workflow is on the default branch, select
+**Actions → Windows paired benchmark → Run workflow**. The selected branch/ref
+is the candidate. Supply an explicit baseline ref, fixture storage (`checkout`
+or `temp`), iteration count (default 15), and worker count (default 4; 0 uses
+rip's default). Each workload has 10,000 entries and a one-second settling pause.
+`checkout` uses `candidate/target`; `temp` uses the Windows temporary directory.
+The actual fixture path is recorded in the result JSON; do not assume drive letters.
+
+Each artifact contains raw measurements and environment metadata, including
+resolved revisions, toolchain, volumes, and Defender status. The workflow requires
+Defender real-time protection to be off and never changes security settings.
+Results are advisory, not performance pass/fail gates.
 
 These are **warm, freshly created synthetic trees**, not cold-cache measurements
 or representative samples of every SSD, antivirus configuration, or project.
@@ -281,109 +283,17 @@ Use Windows results to evaluate Windows changes; Linux timings cannot validate
 the Windows API path. Repeat promising results on the actual Windows workstation
 and representative disposable project trees before choosing a new thread default.
 
-### September 2026 experiment outcome: keep the existing deleter
+For CPU/file-I/O diagnosis, manually run `.github/workflows/profile.yml`. It uses
+optimized builds with PDB symbols and pinned PerfView/TraceEvent 3.2.6, requiring
+Defender real-time protection off without changing settings. It captures separate
+CPU-only and detailed I/O traces for flat, wide, and directory-only workloads.
+Artifacts include ETL, matching executable/PDB, metadata, logs, and JSON summaries.
+Use CPU-only traces for CPU attribution; detailed I/O stack collection adds
+substantial overhead. Neither mode measures a before/after speedup.
 
-The experiments did **not** establish a reliable general Windows speedup, so
-the production deletion code and default worker count were restored unchanged.
-
-- [Verbatim-root preparation and depth buckets](https://github.com/curtisalexander/rip/actions/runs/35257861739)
-  did not show consistent gains. Verbatim `PathBuf` joins reparse their parents,
-  making an already-verbatim walk root a poor shortcut for deep trees.
-- [Deleting leaves during directory enumeration](https://github.com/curtisalexander/rip/actions/runs/35260914751)
-  won all nine wide-tree pairs at 16 workers, but flat trees at four workers
-  regressed from 1,292 ms to 1,603 ms median. It was not retained. An earlier
-  variant with nested Rayon work inside jwalk callbacks also stalled; the
-  timeout-backed stress test guards against reintroducing that design.
-- [Ordinary absolute-root preparation with the existing two-phase algorithm](https://github.com/curtisalexander/rip/actions/runs/35262571473)
-  was also inconclusive. At four workers, the candidate won only 5/11 flat,
-  4/11 wide, 5/11 read-only, 7/11 deep and 7/11 directory-heavy pairs. A lower
-  median in an individual workload was not enough to justify a speedup claim.
-
-The [source-identical control](https://github.com/curtisalexander/rip/actions/runs/35263855208)
-also produced substantial timing variation: flat-tree medians were 1,668 versus
-1,792 ms, and read-only-tree medians were 1,096 versus 924 ms, without any change
-to deletion source. This limits what small median differences on these hosted
-runners can establish.
-
-These used hosted Windows Server 2022 runners, NTFS, and four logical CPUs.
-The later runs explicitly recorded Defender real-time protection as **off**,
-the host default. No experiment changed it.
-
-### Defender-off Windows profiling
-
-The [six-profile run](https://github.com/curtisalexander/rip/actions/runs/35268061521)
-uses the unchanged deleter, four workers, freshly created NTFS fixtures, and
-optimized release builds with PDB symbols. All six jobs recorded Defender
-real-time protection as off, verified deletion counts and zero errors, and
-reported zero lost ETW events. Fixture creation is outside collection.
-
-CPU-only samples show these **inclusive CPU shares**, not wall-time shares:
-
-| Workload | Windows delete helper | `CloseHandle` | `CreateFileW` |
-|---|---:|---:|---:|
-| 20,000 files in one folder | 98.4% | 56.8% | 34.0% |
-| 20,000 files across 200 folders | 97.6% | 59.7% | 29.6% |
-| 20,032 directories, no files | 52.6% | 30.1% | 17.9% |
-
-These columns overlap: the helper includes the Windows calls. NTFS cleanup
-dominates the close path. The jwalk enumeration callback accounts for 37.4%
-of CPU samples in the directory-only case, versus 1.4% in the wide-file case.
-This favors investigating per-entry Windows open/delete/cleanup costs for
-file-heavy trees; enumeration remains relevant for directory-heavy trees.
-
-Separate detailed I/O traces show long cleanup requests, including seconds-long
-outliers. Their durations overlap across workers and nested filesystem work;
-do not sum them as elapsed time. CPU sampling does not measure blocked time.
-Hosted storage variability is substantial: the directory-only CPU job took
-38.6 seconds untraced and 5.8 seconds traced on a recreated fixture. These single
-observations are diagnostic, **not a speedup or tracing-overhead benchmark**.
-
-`.github/workflows/profile.yml` reproduces both collection modes with pinned
-PerfView/TraceEvent 3.2.6. It refuses to run with Defender real-time protection
-active and never changes security settings. This does not unload filesystem
-filter drivers. Artifacts contain ETL traces, matching executable/PDB files,
-environment metadata, logs, and JSON summaries; open the ETL in PerfView for
-interactive inspection. Use CPU-only traces for CPU attribution: detailed I/O
-collection also captures per-operation stacks and adds substantial tracing work.
-The production implementation remains unchanged; validate any resulting
-optimization with repeated untraced paired benchmarks on representative storage.
-
-### Parent-relative native-open experiment: not retained
-
-The [prototype](https://github.com/curtisalexander/rip/commit/f2fd03c)
-retained one parent-directory handle per Rayon task and used `NtOpenFile` with
-`RootDirectory` and a UTF-16 leaf name for file deletion. It kept the existing
-POSIX/ignore-readonly disposition, close operation, four workers, traversal,
-and directory deletion. Cached handles were released before deleting directories.
-This tested file opens only, not a complete handle-relative traversal redesign.
-
-The [first run on the temporary volume, C:](https://github.com/curtisalexander/rip/actions/runs/35279004938)
-was noisy: paired median baseline/candidate ratios were 1.007x flat, 1.020x wide,
-1.173x deep, 1.184x read-only, and 0.947x directories. Candidate wins were only
-7/11, 7/11, 6/11, 9/11, and 4/11 respectively.
-
-The [second run on the checkout volume, D:](https://github.com/curtisalexander/rip/actions/runs/35279865081)
-did not reproduce a benefit:
-
-| Workload | Baseline median | Candidate median | Median paired speedup | Candidate wins |
-|---|---:|---:|---:|---:|
-| Flat | 497 ms | 737 ms | 0.668x | 0/15 |
-| Wide | 373 ms | 370 ms | 0.992x | 6/15 |
-| Deep | 365 ms | 373 ms | 0.935x | 6/15 |
-| Read-only | 375 ms | 399 ms | 0.924x | 3/15 |
-| Directories (unchanged path) | 445 ms | 445 ms | 1.003x | 8/15 |
-
-Ratios above 1 favor the candidate; paired medians differ from ratios of the
-two unpaired medians. All 260 timed deletions passed count/error checks, and all
-ten Windows tests passed on each runner, including prototype tests for Unicode
-lengths, parent switching, and junction substitution after caching a handle.
-Defender real-time protection was off throughout the recorded pre-run checks.
-
-The consistent flat-folder regression rejects this prototype as a general
-optimization. These results do not establish the cause of the regression or rule
-out other handle-relative designs. The prototype was reverted; production source
-and Cargo configuration again match the original baseline. The experiment remains
-available in Git history, with raw measurements in the linked Actions artifacts.
+The [Windows experiment history](bench/windows-experiments.md) documents the
+rejected optimizations, profiling findings, and durable representative raw results.
+No production speedup was established; the original deleter is unchanged.
 
 ## Testing
 

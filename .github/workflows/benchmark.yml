@@ -1,23 +1,28 @@
-name: Windows performance experiment
+name: Windows paired benchmark
 
 on:
-  push:
-    branches: [perf/windows-delete]
-    # Profiling and documentation pushes should not repeat the timing matrix.
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'bench/compare.py'
-      - 'bench/bench.ps1'
-      - '.github/workflows/benchmark.yml'
   workflow_dispatch:
     inputs:
       baseline:
         description: Baseline commit or ref (built on the same runner)
         required: true
-        default: '68ef64b3b7261d0e136a6cb37ffece44d74d63d5'
+        type: string
+      storage:
+        description: Fixture volume (checkout or Windows temporary directory)
+        type: choice
+        options: [checkout, temp]
+        default: checkout
+        required: true
+      iterations:
+        description: Timed pairs per workload (positive integer)
+        type: number
+        default: 15
+        required: true
+      threads:
+        description: Worker count (nonnegative integer; 0 uses rip default)
+        type: number
+        default: 4
+        required: true
 
 permissions:
   contents: read
@@ -36,7 +41,7 @@ jobs:
           path: candidate
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.baseline || '68ef64b3b7261d0e136a6cb37ffece44d74d63d5' }}
+          ref: ${{ inputs.baseline }}
           path: baseline
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -47,16 +52,19 @@ jobs:
       - name: Record environment (do not change Defender)
         shell: pwsh
         run: |
-          Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, OsBuildNumber, CsProcessors | ConvertTo-Json -Depth 3
-          Get-Volume | Select-Object DriveLetter, FileSystem, SizeRemaining, Size | ConvertTo-Json
           $defender = Get-MpComputerStatus
-          $defender | Select-Object AMProductVersion, AntivirusSignatureVersion, RealTimeProtectionEnabled | ConvertTo-Json
+          @{
+            baseline = (git -C baseline rev-parse HEAD)
+            candidate = (git -C candidate rev-parse HEAD)
+            rust = (rustc -Vv)
+            os = (Get-ComputerInfo | Select-Object WindowsProductName, OsBuildNumber, CsProcessors)
+            volumes = (Get-Volume | Select-Object DriveLetter, FileSystem, Size)
+            disks = (Get-Disk | Select-Object Number, FriendlyName, BusType)
+            defender = ($defender | Select-Object AMProductVersion, AntivirusSignatureVersion, RealTimeProtectionEnabled)
+          } | ConvertTo-Json -Depth 5 | Tee-Object -FilePath environment.json
           if ($defender.RealTimeProtectionEnabled -ne $false) {
-            throw 'This experiment requires Defender real-time protection off; settings are not changed.'
+            throw 'This benchmark requires Defender real-time protection off; settings are not changed.'
           }
-          rustc -Vv
-          git -C baseline rev-parse HEAD
-          git -C candidate rev-parse HEAD
       - name: Check candidate
         working-directory: candidate
         run: |
@@ -73,17 +81,23 @@ jobs:
         working-directory: candidate
         run: cargo build --release --locked
       - name: Paired comparison
-        run: >-
-          python candidate/bench/compare.py
-          --baseline baseline/target/release/rip.exe
-          --candidate candidate/target/release/rip.exe
-          --shapes ${{ matrix.shape }}
-          --entries 10000 --iterations 15 --threads 4
-          --work-root candidate/target
-          --settle-seconds 1
-          --output comparison.json
+        env:
+          BENCH_STORAGE: ${{ inputs.storage }}
+          BENCH_ITERATIONS: ${{ inputs.iterations }}
+          BENCH_THREADS: ${{ inputs.threads }}
+          BENCH_SHAPE: ${{ matrix.shape }}
+        run: |
+          $workRoot = switch ($env:BENCH_STORAGE) {
+            'checkout' { 'candidate/target' }
+            'temp' { [System.IO.Path]::GetTempPath() }
+            default { throw 'Unknown fixture storage selection' }
+          }
+          python candidate/bench/compare.py --baseline baseline/target/release/rip.exe --candidate candidate/target/release/rip.exe --shapes "$env:BENCH_SHAPE" --entries 10000 --iterations "$env:BENCH_ITERATIONS" --threads "$env:BENCH_THREADS" --work-root "$workRoot" --settle-seconds 1 --output comparison.json
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: comparison-${{ matrix.shape }}
-          path: comparison.json
+          path: |
+            comparison.json
+            environment.json

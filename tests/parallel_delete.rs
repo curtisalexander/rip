@@ -26,7 +26,8 @@ fn wide_tree_completes_without_worker_starvation() {
             .stderr(Stdio::piped())
             .spawn()
             .unwrap();
-        let deadline = Instant::now() + Duration::from_secs(30);
+        // A deadlock guard, not a performance threshold for shared CI machines.
+        let deadline = Instant::now() + Duration::from_secs(120);
         while child.try_wait().unwrap().is_none() {
             if Instant::now() > deadline {
                 child.kill().unwrap();

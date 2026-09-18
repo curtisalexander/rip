@@ -1,0 +1,237 @@
+{
+  "platform": "Windows-2022Server-10.0.20348-SP0",
+  "cpu_count": 4,
+  "entries": 10000,
+  "iterations": 15,
+  "settle_seconds": 1.0,
+  "rayon_num_threads": null,
+  "sha256": {
+    "baseline": "c24770359f5b429e2857aaf87a59feff88f7c229f929dcbd166f2c0b6b247475",
+    "candidate": "858b413f4f20a64133639883c2bd6fd2b4efc9e110528e8cc7daa2c9e786406f"
+  },
+  "samples": [
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 0,
+      "binary": "candidate",
+      "ms": 385.0959
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 0,
+      "binary": "baseline",
+      "ms": 362.776
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 1,
+      "binary": "baseline",
+      "ms": 412.9308
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 1,
+      "binary": "candidate",
+      "ms": 465.3582
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 2,
+      "binary": "candidate",
+      "ms": 392.6505
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 2,
+      "binary": "baseline",
+      "ms": 416.1435
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 3,
+      "binary": "baseline",
+      "ms": 367.9116
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 3,
+      "binary": "candidate",
+      "ms": 392.548
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 4,
+      "binary": "candidate",
+      "ms": 390.639
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 4,
+      "binary": "baseline",
+      "ms": 390.9869
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 5,
+      "binary": "baseline",
+      "ms": 394.146
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 5,
+      "binary": "candidate",
+      "ms": 392.6499
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 6,
+      "binary": "candidate",
+      "ms": 398.828
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 6,
+      "binary": "baseline",
+      "ms": 360.2778
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 7,
+      "binary": "baseline",
+      "ms": 374.7698
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 7,
+      "binary": "candidate",
+      "ms": 398.5878
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 8,
+      "binary": "candidate",
+      "ms": 417.588
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 8,
+      "binary": "baseline",
+      "ms": 385.8939
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 9,
+      "binary": "baseline",
+      "ms": 397.1105
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 9,
+      "binary": "candidate",
+      "ms": 434.3578
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 10,
+      "binary": "candidate",
+      "ms": 419.7516
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 10,
+      "binary": "baseline",
+      "ms": 377.5724
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 11,
+      "binary": "baseline",
+      "ms": 364.7778
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 11,
+      "binary": "candidate",
+      "ms": 406.7775
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 12,
+      "binary": "candidate",
+      "ms": 393.8952
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 12,
+      "binary": "baseline",
+      "ms": 362.2956
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 13,
+      "binary": "baseline",
+      "ms": 369.2411
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 13,
+      "binary": "candidate",
+      "ms": 443.7215
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 14,
+      "binary": "candidate",
+      "ms": 389.8809
+    },
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "iteration": 14,
+      "binary": "baseline",
+      "ms": 367.1017
+    }
+  ],
+  "summary": [
+    {
+      "shape": "readonly",
+      "threads": 4,
+      "baseline_ms": 374.7698,
+      "candidate_ms": 398.5878,
+      "paired_speedup": 0.9241019856892438,
+      "candidate_wins": 3,
+      "min_speedup": 0.8321460645923175,
+      "max_speedup": 1.0598318351816691
+    }
+  ],
+  "scratch_path": "\\\\?\\D:\\a\\rip\\rip\\candidate\\target\\rip-compare-m96v14vm"
+}
